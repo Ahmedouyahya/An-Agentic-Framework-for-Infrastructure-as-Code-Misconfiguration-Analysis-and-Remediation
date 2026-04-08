@@ -39,5 +39,6 @@ Code/scraping/__pycache__/
 Code/src/**/__pycache__/
 
 # Claude internal
+CLAUDE.md
 .claude/
 .sixth/
