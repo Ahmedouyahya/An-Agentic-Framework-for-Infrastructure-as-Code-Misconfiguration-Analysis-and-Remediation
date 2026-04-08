@@ -1,0 +1,12 @@
+\babel@toc {english}{}\relax 
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Detailed architecture of the proposed agentic framework for IaC misconfiguration analysis and remediation. Modules are colour-coded: \textcolor {agentblue}{blue} = Central Agent, \textcolor {analyzergreen}{green} = Contextual Analyzer, \textcolor {kbpurple}{purple} = Knowledge Base/Retriever, \textcolor {generatororange}{orange} = Fix Generator, \textcolor {validatorsalmon}{red} = External Validators, \textcolor {formatterpink}{pink} = Formatter.}}{14}{figure.caption.7}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {4.1}{\ignorespaces Distribution of CWE categories across the 27 annotated smell instances. CWE-732 (overly permissive permissions) and CWE-250 (run as root) are the most frequent, each appearing in 8 instances.}}{21}{figure.caption.10}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {6.1}{\ignorespaces Precision, Recall, and F1-score per IaC tool under Config~A (Checkov-only baseline). Docker achieves the highest F1 (0.400); Ansible scores zero due to check ID mismatch. The overall Macro-F1 of 0.082 reflects the heterogeneous quality of Checkov coverage across tool types.}}{30}{figure.caption.15}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }

@@ -1,0 +1,184 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{csquotes}
+\usepackage[margin=2.5cm]{geometry}
+
+\title{Bibliographic Report on Retrieval-Augmented Generation,\\Tool-Using Language Models, and Autonomous Agents}
+\author{Ahmedou Yahye Kheyri\\Supervisor: Hala Bezine}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This first report presents a structured literature review of recent work on Retrieval-Augmented Generation (RAG), tool-using language models, secure code generation, and large-language-model-based autonomous agents. For each reference in the current bibliography, we summarise the problem, describe the proposed model or framework, highlight key empirical results, and discuss limitations. We then synthesise common ideas and propose an integrated architecture that can serve as a foundation for the rest of the dissertation.
+\end{abstract}
+
+\section{Introduction}
+
+Large language models (LLMs) have become central components for building intelligent assistants and autonomous agents. However, raw LLMs suffer from important limitations: hallucinations, outdated knowledge, weak arithmetic ability, and a lack of direct interaction with external tools and environments. The papers in the current bibliography address these issues from several complementary directions:
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Advanced Retrieval-Augmented Generation (RAG)}: models that make retrieval adaptive, corrective, and robust (CRAG, Self-RAG, Active RAG/FLARE).
+  \item \textbf{Tool-using language models and code security}: systems that learn to call APIs and that verify code produced via RAG and LLMs (Toolformer, verification mechanisms for code security).
+  \item \textbf{Autonomous agents and benchmarks}: architectures, specialised API agents, executable code actions, and benchmarks for general assistants (LLM-agent survey, Gorilla, CodeAct, GAIA).
+\end{itemize}
+
+This report follows the sequence of the current Bib\TeX{} files and treats each reference one by one. For each work, we focus on three questions: (i) What problem does it address? (ii) What model or method is proposed? (iii) What are the main empirical findings? We close with a proposal for a hybrid architecture that combines the most relevant ideas for the intended master dissertation.
+
+\section{Corrective Retrieval-Augmented Generation (CRAG)}
+
+\subsection{Problem and Motivation}
+
+Classical RAG pipelines retrieve a fixed number of passages from a static corpus and condition an LLM on these passages to generate an answer. This design is fragile: if retrieval fails or returns partially relevant passages, the LLM has little recourse and tends to hallucinate. Furthermore, retrieval is typically performed only once, at the beginning of the pipeline, without any quality control.
+
+CRAG (Corrective Retrieval-Augmented Generation) targets this weakness by making retrieval \emph{evaluated} and \emph{corrective}. The goal is to detect when retrieval is poor and to repair it dynamically before relying on the retrieved evidence for generation.
+
+\subsection{Model and Architecture}
+
+CRAG wraps a conventional RAG system with three additional components:
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Lightweight retrieval evaluator}: a small model or scoring module that assigns a confidence score to the retrieved documents, approximating how useful they are for answering the query.
+  \item \textbf{Dynamic web search extension}: when the evaluator judges retrieval quality as low, the system augments the static corpus with web search results to obtain fresher or more relevant evidence.
+  \item \textbf{Decompose--then--recompose}: instead of feeding long and noisy documents directly, CRAG decomposes them into segments, filters irrelevant parts, and recomposes a compact and focussed context for the LLM.
+\end{itemize}
+
+These additions are designed to be plug-and-play: they can be layered on top of existing RAG systems without retraining the base LLM.
+
+\subsection{Empirical Results}
+
+Experiments on several QA and generation benchmarks show that CRAG improves robustness and factual accuracy compared to vanilla RAG and some self-correcting baselines. The largest gains appear in scenarios with noisy retrieval or incomplete corpora, where web search and document recomposition provide significant additional signal.
+
+\section{Self-RAG: Learning to Retrieve, Generate, and Critique}
+
+\subsection{Problem and Motivation}
+
+Self-RAG addresses two limitations of standard RAG: (i) retrieval is usually non-adaptive (a fixed number of passages is always retrieved), and (ii) there is no explicit mechanism for the model to reflect on the adequacy of retrieved evidence or on the factual quality of its own outputs.
+
+\subsection{Model and Architecture}
+
+Self-RAG trains a single LLM to control retrieval, generation, and self-critique. The core ideas are:
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Reflection tokens}: special control tokens are introduced to trigger retrieval, to comment on retrieved passages, and to critique generated answers.
+  \item \textbf{Adaptive retrieval}: the model learns to decide when retrieval is necessary, how many passages to retrieve, and when it is safe to rely on parametric knowledge alone.
+  \item \textbf{Self-critique and selection}: the model generates critique tokens that assess alternative candidate answers and can select or re-rank them.
+\end{itemize}
+
+\subsection{Empirical Results}
+
+Self-RAG significantly improves factual accuracy, citation quality, and robustness on open-domain QA, reasoning, and fact verification tasks compared to ChatGPT and Llama2-based RAG baselines. The architecture demonstrates that small to medium models with explicit control and reflection can outperform larger black-box models, especially on long-form tasks where citations and self-checking are important.
+
+\section{Active Retrieval-Augmented Generation (FLARE)}
+
+\subsection{Problem and Motivation}
+
+CRAG and Self-RAG mainly reason about retrieval at the query level. In contrast, Active RAG (often referred to as FLARE) focuses on \emph{long-form} generation, where information needs evolve throughout the answer. A single retrieval at the beginning is insufficient once the model moves far away from the initial question.
+
+\subsection{Model and Architecture}
+
+FLARE introduces \emph{forward-looking} active retrieval:
+\begin{itemize}[leftmargin=1.2cm]
+  \item At each step, the model predicts the upcoming sentence and treats this prediction as a query to the retriever.
+  \item Sentences that contain low-confidence tokens are regenerated using additional evidence retrieved with these forward-looking queries.
+  \item This process repeats as the answer unfolds, allowing the model to discover new relevant documents as new subtopics appear.
+\end{itemize}
+
+\subsection{Empirical Results}
+
+On long-form QA, summarisation, and chain-of-thought reasoning tasks, FLARE achieves equal or better performance than static RAG. The benefits are particularly visible on multi-hop questions where relevant evidence is not easily retrievable from the initial query alone.
+
+\section{Toolformer: Language Models Can Teach Themselves to Use Tools}
+
+\subsection{Problem and Motivation}
+
+LLMs have limited arithmetic skills, outdated factual knowledge, and difficulty with precise symbolic tasks. Toolformer explores how an LLM can learn to call external tools (APIs) in a data-efficient and self-supervised way, instead of relying on manual pipelines or heavy human annotation.
+
+\subsection{Model and Architecture}
+
+The key components of Toolformer are:
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Self-supervised API annotation}: starting from a few manual examples per API, the base model is used to propose candidate API calls inside unlabelled text. These calls are kept only if they improve the log-likelihood of the training data.
+  \item \textbf{End-to-end training}: the model is trained so that it can decide when to call an API, which one to call, with which arguments, and how to integrate the tool output back into the continuation.
+  \item \textbf{Multiple tools}: the same mechanism is applied to calculators, search engines, QA systems, translation services, and calendars.
+\end{itemize}
+
+\subsection{Empirical Results}
+
+Toolformer achieves strong zero-shot performance on tasks that naturally benefit from tools, often matching or surpassing larger purely parametric models. Crucially, it preserves general language modelling ability while adding a robust notion of API usage.
+
+\section{Towards Reliable AI for Code Security: Verification Mechanisms for RAG Systems}
+
+\subsection{Problem and Motivation}
+
+When LLMs and RAG are applied to code generation and vulnerability repair, incorrect or insecure suggestions may have serious consequences. Therefore, simple retrieval is insufficient: we also need verification mechanisms that can check whether proposed patches are secure and correct.
+
+\subsection{Model and Architecture}
+
+Recent work in this direction follows a common pattern:
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Security knowledge bases}: curated corpora built from vulnerability databases, secure code examples, and root-cause analyses. RAG is used to ground the LLM in this security knowledge.
+  \item \textbf{Multi-tool verification}: integration of compilers, static analyzers (e.g., CodeQL), linters, and symbolic execution engines (e.g., KLEE) that check suggested patches.
+  \item \textbf{Repository-level retrieval}: retrieval not only at the function level but across entire repositories, so that the model sees the necessary context to reason about side effects and cross-module dependencies.
+\end{itemize}
+
+\subsection{Empirical Results}
+
+Such verification-enhanced RAG systems have been shown to drastically reduce vulnerability rates in generated code, including large drops in critical defects for models like CodeLlama and DeepSeek-Coder. These results suggest that verification is a key ingredient for reliable AI in software security.
+
+\section{Survey on LLM-Based Autonomous Agents}
+
+The survey by Wang et al.\ provides a taxonomy for LLM-based autonomous agents. It decomposes an agent into:
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Profiling}: defining roles and capabilities.
+  \item \textbf{Memory}: handling short- and long-term memory, including episodic and semantic stores.
+  \item \textbf{Planning}: decomposing tasks, scheduling actions, and revising plans.
+  \item \textbf{Action}: executing tool calls, API requests, and environment interactions.
+\end{itemize}
+
+The survey summarises applications (social simulations, web agents, code agents, etc.) and evaluation approaches, highlighting open challenges in robustness, safety, and interpretability. It provides the conceptual backbone for positioning the rest of the works in an agent perspective.
+
+\section{Gorilla: LLM Connected with Massive APIs}
+
+Gorilla specialises LLMs for API usage at scale. It introduces retriever-aware training (RAT), where API documentation is retrieved and injected into the model, enabling it to adapt to changing APIs at test time. An API-specific benchmark and AST-based metrics are used to quantify hallucination in generated API calls.
+
+Empirically, Gorilla outperforms even GPT-4 on several API-calling benchmarks and substantially reduces hallucination, showing that specialised fine-tuning with retrieval over documentation yields strong \enquote{API agents}.
+
+\section{Executable Code Actions Elicit Better LLM Agents (CodeAct)}
+
+CodeAct proposes to represent agent actions as executable Python code rather than JSON-like structures. The agent emits code, which is run in a sandboxed interpreter, and the results (outputs or errors) are fed back into the LLM. This unifies the action space, enables complex compositions of tools, and supports self-debugging.
+
+Experiments on benchmarks such as API-Bank show that CodeAct agents obtain higher success rates than baselines based on non-executable action formats, suggesting that executable actions are a powerful design choice for advanced agents.
+
+\section{GAIA: A Benchmark for General AI Assistants}
+
+GAIA is a benchmark designed to evaluate general assistants on realistic, human-easy tasks that involve reasoning, web browsing, tool use, and sometimes multimodal inputs. While humans achieve around 92\% accuracy, GPT-4 with plugins reaches only about 15\%, revealing a large gap between current AI systems and robust everyday reasoning.
+
+GAIA is relevant for this dissertation because it motivates the need for systems that combine adaptive retrieval, tool usage, and verification in order to move closer to human-level robustness.
+
+\section{Synthesis and Proposed Direction}
+
+Across these works, several common patterns emerge:
+\begin{itemize}[leftmargin=1.2cm]
+  \item Retrieval must be \textbf{adaptive and corrective} (CRAG, Self-RAG, FLARE).
+  \item LLMs should be \textbf{tool-using agents}, able to call APIs and execute code (Toolformer, Gorilla, CodeAct).
+  \item For safety-critical domains such as code security, \textbf{verification mechanisms} are essential, beyond pure language modelling.
+  \item General assistants should be evaluated on \textbf{realistic tasks} (GAIA), not only on synthetic benchmarks.
+\end{itemize}
+
+For the master dissertation, a promising direction is to design and implement a hybrid agent that:
+\begin{itemize}[leftmargin=1.2cm]
+  \item uses Self-RAG-style reflection tokens and CRAG-style corrective retrieval (including optional web search),
+  \item executes actions as CodeAct-style Python code and Toolformer/Gorilla-style API calls,
+  \item and integrates security verification tools in the loop when manipulating code.
+\end{itemize}
+
+This report, as \emph{rapport 1}, establishes the conceptual and bibliographic foundation for that system. Later reports can focus on a detailed system design, implementation, and experimental evaluation on appropriate benchmarks.
+
+\end{document}
+

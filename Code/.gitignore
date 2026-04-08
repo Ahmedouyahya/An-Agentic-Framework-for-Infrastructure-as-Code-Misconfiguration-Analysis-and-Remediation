@@ -1,0 +1,29 @@
+# Environment & secrets
+.env
+*.env
+
+# Vector store data
+chroma_db/
+*.faiss
+*.pkl
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Notebooks checkpoints
+.ipynb_checkpoints/
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Scraping output (large files)
+scraping/output/

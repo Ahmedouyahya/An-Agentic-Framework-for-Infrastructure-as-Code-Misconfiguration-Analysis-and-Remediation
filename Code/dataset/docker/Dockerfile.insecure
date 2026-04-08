@@ -1,0 +1,45 @@
+# =============================================================================
+# DATASET FILE: docker/Dockerfile.insecure
+# Smells: [DOC-01] Root user, [DOC-02] Unpinned base image (latest),
+#         [DOC-03] Hardcoded secret in ENV, [DOC-04] Broad COPY,
+#         [DOC-05] Unnecessary packages, [DOC-06] No HEALTHCHECK
+# Checkov IDs: CKV_DOCKER_2, CKV_DOCKER_3, CKV_DOCKER_7, CKV_DOCKER_8
+# CWE: CWE-250, CWE-259, CWE-732
+# =============================================================================
+
+# SMELL [DOC-02]: Mutable 'latest' tag — image version not pinned — CKV_DOCKER_7
+FROM ubuntu:latest
+
+# SMELL [DOC-03]: Hardcoded secrets in ENV — persist in image layers — CWE-259
+ENV DB_PASSWORD="admin123" \
+    API_SECRET="supersecret_api_key_xyz" \
+    AWS_ACCESS_KEY_ID="AKIAIOSFODNN7EXAMPLE" \
+    AWS_SECRET_ACCESS_KEY="wJalrXUtnFEMI/K7MDENG/bPxRfi"
+
+# SMELL [DOC-05]: Installing unnecessary tools (curl, wget, vim) increases attack surface
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    curl \
+    wget \
+    vim \
+    net-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# SMELL [DOC-04]: Copies entire context including .git, .env, secrets/ — CKV_DOCKER_3
+COPY . .
+
+RUN pip3 install -r requirements.txt
+
+# SMELL [DOC-01]: Container runs as root (no USER instruction) — CKV_DOCKER_2 / CWE-250
+# USER instruction is missing — defaults to root
+
+EXPOSE 8080
+EXPOSE 22        # SMELL [DOC-07]: Exposing SSH port in application container
+
+# SMELL [DOC-06]: No HEALTHCHECK defined — CKV_DOCKER_8
+# HEALTHCHECK instruction is missing
+
+CMD ["python3", "app.py"]

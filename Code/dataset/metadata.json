@@ -1,0 +1,868 @@
+{
+  "dataset_version": "1.0",
+  "description": "Manually curated IaC security smell dataset for the PFE agentic framework evaluation.",
+  "taxonomy_reference": "War et al. (2025) \u2014 62-category IaC security smell taxonomy aligned with CWE",
+  "files": [
+    {
+      "id": "TF-S3",
+      "file": "terraform/insecure_s3.tf",
+      "iac_tool": "terraform",
+      "smells": [
+        {
+          "smell_id": "TF-S3-01",
+          "type": "overly_permissive_acl",
+          "line": 18,
+          "cwe": "CWE-732",
+          "checkov_id": "CKV_AWS_20",
+          "description": "S3 bucket ACL set to public-read, exposing all objects",
+          "category": "Security"
+        },
+        {
+          "smell_id": "TF-S3-02",
+          "type": "missing_encryption",
+          "line": null,
+          "cwe": "CWE-312",
+          "checkov_id": "CKV_AWS_19",
+          "description": "No server-side encryption configured for S3 bucket",
+          "category": "Security"
+        },
+        {
+          "smell_id": "TF-S3-03",
+          "type": "versioning_disabled",
+          "line": null,
+          "cwe": "CWE-693",
+          "checkov_id": "CKV_AWS_52",
+          "description": "S3 bucket versioning is disabled",
+          "category": "Configuration Data"
+        },
+        {
+          "smell_id": "TF-S3-04",
+          "type": "public_access_block_disabled",
+          "line": 24,
+          "cwe": "CWE-732",
+          "checkov_id": "CKV_AWS_53",
+          "description": "All four public-access block settings are false",
+          "category": "Security"
+        }
+      ]
+    },
+    {
+      "id": "TF-EC2",
+      "file": "terraform/insecure_ec2.tf",
+      "iac_tool": "terraform",
+      "smells": [
+        {
+          "smell_id": "TF-EC2-01",
+          "type": "hardcoded_credential",
+          "line": 11,
+          "cwe": "CWE-798",
+          "checkov_id": "CKV_AWS_41",
+          "description": "AWS access key hardcoded in provider block",
+          "category": "Security"
+        },
+        {
+          "smell_id": "TF-EC2-02",
+          "type": "overly_permissive_cidr",
+          "line": 24,
+          "cwe": "CWE-732",
+          "checkov_id": "CKV_AWS_25",
+          "description": "Security group allows all TCP traffic from 0.0.0.0/0",
+          "category": "Security"
+        },
+        {
+          "smell_id": "TF-EC2-03",
+          "type": "imdsv2_not_required",
+          "line": 44,
+          "cwe": "CWE-346",
+          "checkov_id": "CKV_AWS_79",
+          "description": "IMDSv2 http_tokens is optional instead of required",
+          "category": "Security"
+        },
+        {
+          "smell_id": "TF-EC2-04",
+          "type": "unencrypted_ebs",
+          "line": 51,
+          "cwe": "CWE-312",
+          "checkov_id": "CKV_AWS_8",
+          "description": "Root EBS volume encryption is false",
+          "category": "Security"
+        }
+      ]
+    },
+    {
+      "id": "TF-RDS",
+      "file": "terraform/insecure_rds.tf",
+      "iac_tool": "terraform",
+      "smells": [
+        {
+          "smell_id": "TF-RDS-01",
+          "type": "publicly_accessible_database",
+          "line": 20,
+          "cwe": "CWE-732",
+          "checkov_id": "CKV_AWS_17",
+          "description": "RDS instance is publicly accessible",
+          "category": "Security"
+        },
+        {
+          "smell_id": "TF-RDS-02",
+          "type": "unencrypted_storage",
+          "line": 23,
+          "cwe": "CWE-312",
+          "checkov_id": "CKV_AWS_16",
+          "description": "RDS storage_encrypted is false",
+          "category": "Security"
+        },
+        {
+          "smell_id": "TF-RDS-03",
+          "type": "backup_disabled",
+          "line": 26,
+          "cwe": "CWE-693",
+          "checkov_id": "CKV_AWS_133",
+          "description": "Automated backups disabled (retention_period = 0)",
+          "category": "Configuration Data"
+        },
+        {
+          "smell_id": "TF-RDS-04",
+          "type": "hardcoded_password",
+          "line": 13,
+          "cwe": "CWE-259",
+          "checkov_id": "CKV_AWS_17",
+          "description": "Database master password hardcoded in resource block",
+          "category": "Security"
+        }
+      ]
+    },
+    {
+      "id": "ANS-WEB",
+      "file": "ansible/insecure_webserver.yml",
+      "iac_tool": "ansible",
+      "smells": [
+        {
+          "smell_id": "ANS-01",
+          "type": "hardcoded_password",
+          "line": 14,
+          "cwe": "CWE-259",
+          "checkov_id": "HEURISTIC",
+          "description": "Plaintext DB password in vars block",
+          "category": "Security"
+        },
+        {
+          "smell_id": "ANS-02",
+          "type": "tls_validation_disabled",
+          "line": 34,
+          "cwe": "CWE-295",
+          "checkov_id": "HEURISTIC",
+          "description": "validate_certs: no disables TLS certificate verification",
+          "category": "Security"
+        },
+        {
+          "smell_id": "ANS-03",
+          "type": "world_writable_permissions",
+          "line": 26,
+          "cwe": "CWE-732",
+          "checkov_id": "HEURISTIC",
+          "description": "File mode 0777 grants world read/write/execute",
+          "category": "Security"
+        },
+        {
+          "smell_id": "ANS-04",
+          "type": "run_as_root",
+          "line": 7,
+          "cwe": "CWE-250",
+          "checkov_id": "HEURISTIC",
+          "description": "become_user: root elevates all tasks unnecessarily",
+          "category": "Security"
+        }
+      ]
+    },
+    {
+      "id": "ANS-USR",
+      "file": "ansible/insecure_users.yml",
+      "iac_tool": "ansible",
+      "smells": [
+        {
+          "smell_id": "ANS-U01",
+          "type": "passwordless_sudo",
+          "line": 14,
+          "cwe": "CWE-250",
+          "checkov_id": "HEURISTIC",
+          "description": "NOPASSWD: ALL grants unrestricted passwordless sudo",
+          "category": "Security"
+        },
+        {
+          "smell_id": "ANS-U02",
+          "type": "ssh_root_login_enabled",
+          "line": 21,
+          "cwe": "CWE-250",
+          "checkov_id": "HEURISTIC",
+          "description": "PermitRootLogin yes allows direct root SSH access",
+          "category": "Security"
+        },
+        {
+          "smell_id": "ANS-U03",
+          "type": "world_readable_private_key",
+          "line": 37,
+          "cwe": "CWE-732",
+          "checkov_id": "HEURISTIC",
+          "description": "SSH private key deployed with mode 0644 (world-readable)",
+          "category": "Security"
+        }
+      ]
+    },
+    {
+      "id": "K8S-DEP",
+      "file": "kubernetes/insecure_deployment.yaml",
+      "iac_tool": "kubernetes",
+      "smells": [
+        {
+          "smell_id": "K8S-01",
+          "type": "privileged_container",
+          "line": 33,
+          "cwe": "CWE-250",
+          "checkov_id": "CKV_K8S_16",
+          "description": "securityContext.privileged: true grants full host access",
+          "category": "Security"
+        },
+        {
+          "smell_id": "K8S-02",
+          "type": "run_as_root",
+          "line": 35,
+          "cwe": "CWE-250",
+          "checkov_id": "CKV_K8S_6",
+          "description": "runAsUser: 0 and runAsNonRoot: false runs container as root",
+          "category": "Security"
+        },
+        {
+          "smell_id": "K8S-03",
+          "type": "no_resource_limits",
+          "line": null,
+          "cwe": "CWE-400",
+          "checkov_id": "CKV_K8S_11",
+          "description": "No CPU/memory limits defined \u2014 risk of resource exhaustion",
+          "category": "Dependency"
+        },
+        {
+          "smell_id": "K8S-04",
+          "type": "hardcoded_secret_in_env",
+          "line": 42,
+          "cwe": "CWE-259",
+          "checkov_id": "CKV_K8S_35",
+          "description": "DB_PASSWORD and API_KEY hardcoded as plaintext env vars",
+          "category": "Security"
+        },
+        {
+          "smell_id": "K8S-05",
+          "type": "host_network_access",
+          "line": 19,
+          "cwe": "CWE-250",
+          "checkov_id": "CKV_K8S_19",
+          "description": "hostNetwork: true shares the host network namespace",
+          "category": "Security"
+        }
+      ]
+    },
+    {
+      "id": "K8S-POD",
+      "file": "kubernetes/insecure_pod.yaml",
+      "iac_tool": "kubernetes",
+      "smells": [
+        {
+          "smell_id": "K8S-P01",
+          "type": "writable_root_filesystem",
+          "line": 20,
+          "cwe": "CWE-732",
+          "checkov_id": "CKV_K8S_22",
+          "description": "readOnlyRootFilesystem: false allows writes to container root",
+          "category": "Security"
+        },
+        {
+          "smell_id": "K8S-P03",
+          "type": "secret_in_configmap",
+          "line": 40,
+          "cwe": "CWE-259",
+          "checkov_id": "HEURISTIC",
+          "description": "Passwords and tokens stored in ConfigMap instead of Secret",
+          "category": "Security"
+        },
+        {
+          "smell_id": "K8S-P04",
+          "type": "automount_service_account_token",
+          "line": 9,
+          "cwe": "CWE-732",
+          "checkov_id": "CKV_K8S_41",
+          "description": "automountServiceAccountToken: true exposes API credentials",
+          "category": "Security"
+        }
+      ]
+    },
+    {
+      "id": "DOC-01",
+      "file": "docker/Dockerfile.insecure",
+      "iac_tool": "docker",
+      "smells": [
+        {
+          "smell_id": "DOC-01",
+          "type": "run_as_root",
+          "line": null,
+          "cwe": "CWE-250",
+          "checkov_id": "CKV_DOCKER_2",
+          "description": "No USER instruction \u2014 container runs as root by default",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DOC-02",
+          "type": "unpinned_base_image",
+          "line": 11,
+          "cwe": "CWE-829",
+          "checkov_id": "CKV_DOCKER_7",
+          "description": "FROM ubuntu:latest \u2014 mutable tag, reproducibility risk",
+          "category": "Dependency"
+        },
+        {
+          "smell_id": "DOC-03",
+          "type": "hardcoded_secret_in_env",
+          "line": 14,
+          "cwe": "CWE-259",
+          "checkov_id": "CKV_DOCKER_3",
+          "description": "Secrets baked into ENV persist in all image layers",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DOC-04",
+          "type": "broad_copy",
+          "line": 27,
+          "cwe": "CWE-732",
+          "checkov_id": "HEURISTIC",
+          "description": "COPY . . copies .git, .env, and secrets into the image",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DOC-06",
+          "type": "missing_healthcheck",
+          "line": null,
+          "cwe": "CWE-693",
+          "checkov_id": "CKV_DOCKER_8",
+          "description": "No HEALTHCHECK instruction defined",
+          "category": "Configuration Data"
+        }
+      ]
+    },
+    {
+      "id": "TF-IAM",
+      "file": "terraform/insecure_iam.tf",
+      "iac_tool": "terraform",
+      "smells": [
+        {
+          "smell_id": "IAM-01",
+          "type": "wildcard_iam_action",
+          "line": 22,
+          "cwe": "CWE-732",
+          "checkov_id": "CKV_AWS_40",
+          "description": "IAM policy grants Action: * (all actions on all services)",
+          "category": "Security"
+        },
+        {
+          "smell_id": "IAM-02",
+          "type": "wildcard_iam_resource",
+          "line": 23,
+          "cwe": "CWE-732",
+          "checkov_id": "CKV_AWS_355",
+          "description": "IAM policy grants Resource: * (applies to all AWS resources)",
+          "category": "Security"
+        },
+        {
+          "smell_id": "IAM-03",
+          "type": "iam_inline_user_policy",
+          "line": 37,
+          "cwe": "CWE-732",
+          "checkov_id": "CKV_AWS_40",
+          "description": "IAM inline policy attached directly to user instead of role/group",
+          "category": "Security"
+        },
+        {
+          "smell_id": "IAM-04",
+          "type": "iam_access_key_no_rotation",
+          "line": 53,
+          "cwe": "CWE-324",
+          "checkov_id": "CKV_AWS_273",
+          "description": "IAM access key created without rotation policy",
+          "category": "Security"
+        },
+        {
+          "smell_id": "IAM-05",
+          "type": "wildcard_trust_principal",
+          "line": 64,
+          "cwe": "CWE-732",
+          "checkov_id": "CKV_AWS_60",
+          "description": "IAM role trust policy allows any AWS account (* principal) to assume it",
+          "category": "Security"
+        }
+      ]
+    },
+    {
+      "id": "TF-NET",
+      "file": "terraform/insecure_networking.tf",
+      "iac_tool": "terraform",
+      "smells": [
+        {
+          "smell_id": "NET-01",
+          "type": "overly_permissive_cidr",
+          "line": 35,
+          "cwe": "CWE-732",
+          "checkov_id": "CKV_AWS_25",
+          "description": "Security group allows ALL TCP from 0.0.0.0/0 (all ports, all IPs)",
+          "category": "Security"
+        },
+        {
+          "smell_id": "NET-02",
+          "type": "unrestricted_egress",
+          "line": 48,
+          "cwe": "CWE-732",
+          "checkov_id": "CKV2_AWS_12",
+          "description": "Security group allows unrestricted outbound traffic to 0.0.0.0/0",
+          "category": "Security"
+        },
+        {
+          "smell_id": "NET-03",
+          "type": "vpc_flow_logs_disabled",
+          "line": 16,
+          "cwe": "CWE-778",
+          "checkov_id": "CKV2_AWS_11",
+          "description": "VPC has no Flow Log resource \u2014 network traffic not monitored",
+          "category": "Security"
+        },
+        {
+          "smell_id": "NET-04",
+          "type": "http_load_balancer",
+          "line": 67,
+          "cwe": "CWE-319",
+          "checkov_id": "CKV_AWS_2",
+          "description": "Load balancer listener uses HTTP (port 80) without HTTPS redirect",
+          "category": "Security"
+        },
+        {
+          "smell_id": "NET-05",
+          "type": "elb_logging_disabled",
+          "line": 58,
+          "cwe": "CWE-778",
+          "checkov_id": "CKV_AWS_91",
+          "description": "ALB/ELB access logging is not enabled \u2014 no request audit trail",
+          "category": "Security"
+        }
+      ]
+    },
+    {
+      "id": "ANS-HARD",
+      "file": "ansible/insecure_hardened.yml",
+      "iac_tool": "ansible",
+      "smells": [
+        {
+          "smell_id": "HARD-01",
+          "type": "hardcoded_password",
+          "line": 18,
+          "cwe": "CWE-259",
+          "checkov_id": "HEURISTIC",
+          "description": "Root and DB passwords hardcoded in vars block as plaintext",
+          "category": "Security"
+        },
+        {
+          "smell_id": "HARD-02",
+          "type": "ssh_password_auth_enabled",
+          "line": 34,
+          "cwe": "CWE-287",
+          "checkov_id": "HEURISTIC",
+          "description": "SSH PasswordAuthentication set to yes \u2014 enables brute-force attacks",
+          "category": "Security"
+        },
+        {
+          "smell_id": "HARD-03",
+          "type": "tls_validation_disabled",
+          "line": 48,
+          "cwe": "CWE-295",
+          "checkov_id": "HEURISTIC",
+          "description": "validate_certs: no disables TLS certificate verification on download",
+          "category": "Security"
+        },
+        {
+          "smell_id": "HARD-04",
+          "type": "world_writable_permissions",
+          "line": 58,
+          "cwe": "CWE-732",
+          "checkov_id": "HEURISTIC",
+          "description": "Sensitive config file with credentials deployed as mode 0644 (world-readable)",
+          "category": "Security"
+        },
+        {
+          "smell_id": "HARD-05",
+          "type": "unpinned_package",
+          "line": 27,
+          "cwe": "CWE-829",
+          "checkov_id": "HEURISTIC",
+          "description": "Package installed with state: latest \u2014 non-deterministic, supply chain risk",
+          "category": "Dependency"
+        },
+        {
+          "smell_id": "HARD-06",
+          "type": "ssh_root_login_enabled",
+          "line": 40,
+          "cwe": "CWE-250",
+          "checkov_id": "HEURISTIC",
+          "description": "PermitRootLogin yes allows direct SSH access to root account",
+          "category": "Security"
+        }
+      ]
+    },
+    {
+      "id": "K8S-RBAC",
+      "file": "kubernetes/insecure_rbac.yaml",
+      "iac_tool": "kubernetes",
+      "smells": [
+        {
+          "smell_id": "RBAC-01",
+          "type": "rbac_wildcard_verbs",
+          "line": 10,
+          "cwe": "CWE-732",
+          "checkov_id": "CKV_K8S_49",
+          "description": "ClusterRole grants wildcard verbs on all resources \u2014 equivalent to cluster-admin",
+          "category": "Security"
+        },
+        {
+          "smell_id": "RBAC-02",
+          "type": "rbac_cluster_admin_binding",
+          "line": 24,
+          "cwe": "CWE-732",
+          "checkov_id": "CKV_K8S_155",
+          "description": "ClusterRoleBinding binds wildcard ClusterRole to default service account",
+          "category": "Security"
+        },
+        {
+          "smell_id": "RBAC-03",
+          "type": "insecure_default_namespace",
+          "line": 30,
+          "cwe": "CWE-284",
+          "checkov_id": "CKV_K8S_21",
+          "description": "Pod and service account deployed in default namespace \u2014 reduces isolation",
+          "category": "Security"
+        },
+        {
+          "smell_id": "RBAC-04",
+          "type": "automount_service_account_token",
+          "line": 44,
+          "cwe": "CWE-732",
+          "checkov_id": "CKV_K8S_42",
+          "description": "automountServiceAccountToken: true automatically mounts API credentials",
+          "category": "Security"
+        },
+        {
+          "smell_id": "RBAC-05",
+          "type": "rbac_wildcard_resources",
+          "line": 9,
+          "cwe": "CWE-732",
+          "checkov_id": "CKV_K8S_155",
+          "description": "ClusterRole grants access to all API groups and resources via wildcard",
+          "category": "Security"
+        }
+      ]
+    },
+    {
+      "id": "DOC-02",
+      "file": "docker/Dockerfile.multi_stage_insecure",
+      "iac_tool": "docker",
+      "smells": [
+        {
+          "smell_id": "DS2-01",
+          "type": "hardcoded_secret_in_env",
+          "line": 38,
+          "cwe": "CWE-259",
+          "checkov_id": "CKV_DOCKER_3",
+          "description": "API key and database URL with password baked into ENV instruction",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DS2-02",
+          "type": "run_as_root",
+          "line": null,
+          "cwe": "CWE-250",
+          "checkov_id": "CKV_DOCKER_2",
+          "description": "No USER instruction in final stage \u2014 container runs as root by default",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DS2-03",
+          "type": "unpinned_base_image",
+          "line": 17,
+          "cwe": "CWE-829",
+          "checkov_id": "CKV_DOCKER_7",
+          "description": "FROM node:latest and FROM ubuntu:latest \u2014 mutable tags, reproducibility risk",
+          "category": "Dependency"
+        },
+        {
+          "smell_id": "DS2-04",
+          "type": "missing_healthcheck",
+          "line": null,
+          "cwe": "CWE-693",
+          "checkov_id": "CKV_DOCKER_1",
+          "description": "No HEALTHCHECK instruction \u2014 orchestrator cannot detect unhealthy container",
+          "category": "Configuration Data"
+        },
+        {
+          "smell_id": "DS2-05",
+          "type": "arg_secret_in_env",
+          "line": 37,
+          "cwe": "CWE-259",
+          "checkov_id": "CKV_DOCKER_3",
+          "description": "Build ARG secret promoted to ENV in final image \u2014 persists in all layers",
+          "category": "Security"
+        }
+      ]
+    },
+    {
+      "id": "DOC-03",
+      "file": "docker/Dockerfile.webapp_insecure",
+      "iac_tool": "docker",
+      "checkov_framework": "dockerfile",
+      "smells": [
+        {
+          "smell_id": "DW-01",
+          "type": "deprecated_maintainer",
+          "cwe": "CWE-1104",
+          "checkov_id": "CKV_DOCKER_6",
+          "line": 17,
+          "description": "Deprecated MAINTAINER instruction used; LABEL maintainer= should be used instead",
+          "category": "Configuration Data"
+        },
+        {
+          "smell_id": "DW-02",
+          "type": "add_instead_of_copy",
+          "cwe": "CWE-829",
+          "checkov_id": "CKV_DOCKER_4",
+          "line": 37,
+          "description": "ADD used for local files; COPY is safer and more explicit",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DW-03",
+          "type": "relative_workdir",
+          "cwe": "CWE-732",
+          "checkov_id": "CKV_DOCKER_10",
+          "line": 27,
+          "description": "WORKDIR uses a relative path; absolute paths prevent ambiguity",
+          "category": "Configuration Data"
+        },
+        {
+          "smell_id": "DW-04",
+          "type": "ssh_port_exposed",
+          "cwe": "CWE-284",
+          "checkov_id": "CKV_DOCKER_1",
+          "line": 46,
+          "description": "Port 22 (SSH) exposed; application containers should not expose SSH",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DW-05",
+          "type": "run_as_root",
+          "cwe": "CWE-250",
+          "checkov_id": "CKV_DOCKER_3",
+          "line": 51,
+          "description": "No USER instruction; container runs as root by default",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DW-06",
+          "type": "missing_healthcheck",
+          "cwe": "CWE-693",
+          "checkov_id": "CKV_DOCKER_2",
+          "line": 53,
+          "description": "No HEALTHCHECK defined; orchestrators cannot detect unhealthy containers",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DW-07",
+          "type": "hardcoded_secret_in_env",
+          "cwe": "CWE-259",
+          "checkov_id": "HEURISTIC",
+          "line": 30,
+          "description": "Hardcoded Flask secret key and database URL with password in ENV",
+          "category": "Security"
+        }
+      ]
+    },
+    {
+      "id": "DOC-04",
+      "file": "docker/Dockerfile.node_api_insecure",
+      "iac_tool": "docker",
+      "checkov_framework": "dockerfile",
+      "smells": [
+        {
+          "smell_id": "DN-01",
+          "type": "update_without_install",
+          "cwe": "CWE-1104",
+          "checkov_id": "CKV_DOCKER_5",
+          "line": 21,
+          "description": "apt-get update on separate RUN layer; stale cache not invalidated at install time",
+          "category": "Configuration Data"
+        },
+        {
+          "smell_id": "DN-02",
+          "type": "apt_direct_usage",
+          "cwe": "CWE-829",
+          "checkov_id": "CKV_DOCKER_9",
+          "line": 24,
+          "description": "apt-get used directly; prefer distroless or minimal base images",
+          "category": "Dependency"
+        },
+        {
+          "smell_id": "DN-03",
+          "type": "supply_chain_curl_bash",
+          "cwe": "CWE-494",
+          "checkov_id": "HEURISTIC",
+          "line": 32,
+          "description": "curl output piped directly to bash with no integrity check; supply chain attack vector",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DN-04",
+          "type": "unsafe_npm_permissions",
+          "cwe": "CWE-250",
+          "checkov_id": "HEURISTIC",
+          "line": 36,
+          "description": "npm install --unsafe-perm allows lifecycle scripts to run with elevated privileges",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DN-05",
+          "type": "hardcoded_secret_in_env",
+          "cwe": "CWE-259",
+          "checkov_id": "HEURISTIC",
+          "line": 40,
+          "description": "Hardcoded JWT signing secret and Stripe live API key in ENV",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DN-06",
+          "type": "run_as_root",
+          "cwe": "CWE-250",
+          "checkov_id": "CKV_DOCKER_3",
+          "line": 50,
+          "description": "No USER instruction; all Node.js processes run as root",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DN-07",
+          "type": "missing_healthcheck",
+          "cwe": "CWE-693",
+          "checkov_id": "CKV_DOCKER_2",
+          "line": 52,
+          "description": "No HEALTHCHECK; container health is invisible to Kubernetes/Docker Swarm",
+          "category": "Security"
+        }
+      ]
+    },
+    {
+      "id": "DOC-05",
+      "file": "docker/Dockerfile.java_service_insecure",
+      "iac_tool": "docker",
+      "checkov_framework": "dockerfile",
+      "smells": [
+        {
+          "smell_id": "DJ-01",
+          "type": "unpinned_base_image",
+          "cwe": "CWE-829",
+          "checkov_id": "CKV_DOCKER_7",
+          "line": 17,
+          "description": "Base image uses mutable :latest tag; breaks reproducibility and may pull vulnerable images",
+          "category": "Dependency"
+        },
+        {
+          "smell_id": "DJ-02",
+          "type": "setuid_binary",
+          "cwe": "CWE-269",
+          "checkov_id": "HEURISTIC",
+          "line": 30,
+          "description": "chmod 4755 sets SETUID bit; any user executing the binary gains root capabilities",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DJ-03",
+          "type": "hardcoded_secret_in_env",
+          "cwe": "CWE-259",
+          "checkov_id": "HEURISTIC",
+          "line": 40,
+          "description": "Database password and encryption key hardcoded in ENV; visible in image layers",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DJ-04",
+          "type": "sudo_installed_in_container",
+          "cwe": "CWE-250",
+          "checkov_id": "HEURISTIC",
+          "line": 22,
+          "description": "sudo installed and configured with NOPASSWD; creates privilege escalation path",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DJ-05",
+          "type": "run_as_root",
+          "cwe": "CWE-250",
+          "checkov_id": "CKV_DOCKER_3",
+          "line": 57,
+          "description": "No USER instruction; JVM and all child processes run as root",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DJ-06",
+          "type": "missing_healthcheck",
+          "cwe": "CWE-693",
+          "checkov_id": "CKV_DOCKER_2",
+          "line": 59,
+          "description": "No HEALTHCHECK; Spring Boot actuator endpoint not monitored by orchestrator",
+          "category": "Security"
+        },
+        {
+          "smell_id": "DJ-07",
+          "type": "remote_add_without_integrity",
+          "cwe": "CWE-494",
+          "checkov_id": "CKV_DOCKER_4",
+          "line": 34,
+          "description": "ADD fetches a remote JAR with no checksum/signature verification; supply chain risk",
+          "category": "Security"
+        }
+      ]
+    }
+  ],
+  "statistics": {
+    "total_files": 16,
+    "total_smells": 79,
+    "by_tool": {
+      "terraform": 22,
+      "ansible": 13,
+      "kubernetes": 13,
+      "docker": 31
+    },
+    "by_category": {
+      "Security": 66,
+      "Configuration Data": 7,
+      "Dependency": 6
+    },
+    "by_cwe": {
+      "CWE-732": 21,
+      "CWE-312": 3,
+      "CWE-693": 7,
+      "CWE-798": 1,
+      "CWE-346": 1,
+      "CWE-259": 11,
+      "CWE-295": 2,
+      "CWE-250": 14,
+      "CWE-400": 1,
+      "CWE-829": 6,
+      "CWE-324": 1,
+      "CWE-778": 2,
+      "CWE-319": 1,
+      "CWE-287": 1,
+      "CWE-284": 2,
+      "CWE-1104": 2,
+      "CWE-494": 2,
+      "CWE-269": 1
+    }
+  }
+}

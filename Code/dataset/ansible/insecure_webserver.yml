@@ -1,0 +1,55 @@
+---
+# =============================================================================
+# DATASET FILE: ansible/insecure_webserver.yml
+# Smells: [ANS-01] Hardcoded password, [ANS-02] TLS disabled,
+#         [ANS-03] World-writable permissions, [ANS-04] Running as root
+# CWE: CWE-259, CWE-295, CWE-732, CWE-250
+# =============================================================================
+
+- name: Deploy insecure web server
+  hosts: webservers
+  become: yes
+  become_user: root          # SMELL [ANS-04]: always running as root — CWE-250
+
+  vars:
+    db_password: "admin123"  # SMELL [ANS-01]: hardcoded password in plaintext — CWE-259
+    app_secret: "mysecretkey789"  # SMELL [ANS-01]: hardcoded secret — CWE-259
+
+  tasks:
+    - name: Install Apache
+      apt:
+        name: apache2
+        state: present
+
+    # SMELL [ANS-03]: World-writable permissions on web root — CWE-732
+    - name: Set web root permissions
+      file:
+        path: /var/www/html
+        mode: "0777"          # SMELL: 777 gives world read/write/execute
+        recurse: yes
+
+    # SMELL [ANS-02]: Downloading over plain HTTP — CWE-319
+    - name: Download application package
+      get_url:
+        url: "http://example.com/app.tar.gz"   # SMELL: HTTP not HTTPS
+        dest: /tmp/app.tar.gz
+        validate_certs: no    # SMELL [ANS-02]: certificate validation disabled — CWE-295
+
+    - name: Configure database connection
+      template:
+        src: db_config.j2
+        dest: /etc/app/db.conf
+        mode: "0644"
+      vars:
+        password: "{{ db_password }}"   # propagating hardcoded password
+
+    # SMELL [ANS-05]: Sensitive data logged — CWE-532
+    - name: Write credentials to log
+      command: echo "DB password is {{ db_password }}"
+      # no_log: true is missing — credentials will appear in Ansible output
+
+    - name: Restart Apache
+      service:
+        name: apache2
+        state: restarted
+        enabled: yes

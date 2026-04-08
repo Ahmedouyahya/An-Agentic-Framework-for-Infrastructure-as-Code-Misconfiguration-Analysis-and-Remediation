@@ -1,0 +1,47 @@
+# =============================================================================
+# DATASET FILE: kubernetes/insecure_pod.yaml
+# Smells: [K8S-P01] No read-only root filesystem, [K8S-P02] No liveness probe,
+#         [K8S-P03] Secret stored as ConfigMap, [K8S-P04] Default service account
+# Checkov IDs: CKV_K8S_22, CKV_K8S_8, CKV_K8S_41
+# CWE: CWE-732, CWE-259
+# =============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: insecure-pod
+  namespace: production
+spec:
+  # SMELL [K8S-P04]: Automounting default service account token — CKV_K8S_41 / CWE-732
+  automountServiceAccountToken: true
+
+  containers:
+    - name: worker
+      image: worker:1.2.3
+
+      securityContext:
+        # SMELL [K8S-P01]: Root filesystem is writable — CKV_K8S_22 / CWE-732
+        readOnlyRootFilesystem: false
+        # SMELL [K8S-P05]: Capabilities not dropped — CKV_K8S_28
+        # capabilities.drop is missing entirely
+
+      # SMELL [K8S-P02]: No liveness or readiness probe — CKV_K8S_8
+      # livenessProbe and readinessProbe are missing
+
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        # SMELL [K8S-P06]: Limits not set — CKV_K8S_11 / CWE-400
+        # limits block is missing
+
+---
+# SMELL [K8S-P03]: Sensitive data stored in a ConfigMap instead of a Secret — CWE-259
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: production
+data:
+  DATABASE_URL: "postgresql://admin:plaintext_password@db:5432/prod"
+  REDIS_PASSWORD: "redis_secret_pass"
+  JWT_SECRET: "my-jwt-signing-key-do-not-share"

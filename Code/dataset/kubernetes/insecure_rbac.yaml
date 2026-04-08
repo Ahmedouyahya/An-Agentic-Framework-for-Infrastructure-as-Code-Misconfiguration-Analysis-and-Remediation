@@ -1,0 +1,72 @@
+# =============================================================================
+# DATASET FILE: kubernetes/insecure_rbac.yaml
+# PURPOSE: Kubernetes RBAC and access control smells
+# Smells:
+#   [RBAC-01] ClusterRole with wildcard verbs                — CWE-732 / CKV_K8S_49
+#   [RBAC-02] ClusterRoleBinding to cluster-admin            — CWE-732 / CKV_K8S_155
+#   [RBAC-03] Service account in default namespace           — CWE-284 / CKV_K8S_21
+#   [RBAC-04] Automount service account token not disabled   — CWE-732 / CKV_K8S_41
+#   [RBAC-05] Pod in default namespace                       — CWE-284 / CKV_K8S_21
+# DETECTION: Direct Checkov check IDs available
+# DIFFICULTY: MEDIUM (structural misconfigs clearly visible)
+# =============================================================================
+---
+# SMELL [RBAC-01]: ClusterRole grants ALL verbs on ALL resources — CKV_K8S_49 / CWE-732
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: insecure-admin-role
+rules:
+  - apiGroups: ["*"]          # SMELL: wildcard API group
+    resources: ["*"]          # SMELL: wildcard resources
+    verbs: ["*"]              # SMELL: wildcard verbs (get/list/create/delete/update/patch)
+---
+# SMELL [RBAC-02]: Binds insecure-admin-role to the default service account
+# cluster-admin or equivalent grants full cluster control
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: insecure-admin-binding
+subjects:
+  - kind: ServiceAccount
+    name: default              # SMELL: using default service account
+    namespace: default         # SMELL: default namespace
+roleRef:
+  kind: ClusterRole
+  name: insecure-admin-role   # SMELL: bound to wildcard role
+  apiGroup: rbac.authorization.k8s.io
+---
+# SMELL [RBAC-03] + [RBAC-04] + [RBAC-05]: Pod in default namespace with token mounted
+apiVersion: v1
+kind: Pod
+metadata:
+  name: insecure-rbac-pod
+  namespace: default           # SMELL [RBAC-05]: should use app-specific namespace
+spec:
+  serviceAccountName: default
+  automountServiceAccountToken: true   # SMELL [RBAC-04]: mounts API token — CKV_K8S_41
+
+  containers:
+    - name: app
+      image: nginx:1.25.0
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+      resources:
+        limits:
+          cpu: "200m"
+          memory: "256Mi"
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+---
+# SMELL: NetworkPolicy missing — all pods can communicate freely
+# (absence of a NetworkPolicy with podSelector and ingress/egress rules)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: app-sa
+  namespace: default           # SMELL: should be in app-specific namespace
+automountServiceAccountToken: true   # SMELL: should be false unless needed

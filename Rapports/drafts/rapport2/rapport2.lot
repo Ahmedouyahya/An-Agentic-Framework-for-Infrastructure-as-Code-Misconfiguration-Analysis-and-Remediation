@@ -1,0 +1,20 @@
+\babel@toc {english}{}\relax 
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {4.1}{\ignorespaces Composition of the evaluation dataset.}}{20}{table.caption.8}%
+\contentsline {table}{\numberline {4.2}{\ignorespaces Smell instances by type and CWE in the evaluation dataset.}}{20}{table.caption.9}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {5.1}{\ignorespaces Ablation study configurations.}}{26}{table.caption.11}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {6.1}{\ignorespaces Experimental environment for Config~A (baseline) evaluation.}}{28}{table.caption.12}%
+\contentsline {table}{\numberline {6.2}{\ignorespaces Overall detection performance of Checkov baseline (Config~A).}}{29}{table.caption.13}%
+\contentsline {table}{\numberline {6.3}{\ignorespaces Detection performance per IaC tool --- Config~A (Checkov baseline).}}{29}{table.caption.14}%
+\contentsline {table}{\numberline {6.4}{\ignorespaces Comparison of Config~A (Checkov baseline) with prior work.}}{31}{table.caption.16}%
+\contentsline {table}{\numberline {6.5}{\ignorespaces Approximate retrieval metrics using keyword matching (27 smell queries).}}{32}{table.caption.17}%
+\contentsline {table}{\numberline {6.6}{\ignorespaces Expected PVR ranges by configuration, derived from comparable systems.}}{33}{table.caption.18}%
+\contentsline {table}{\numberline {6.7}{\ignorespaces Estimated API cost for Config~D (full pipeline) on the evaluation dataset.}}{33}{table.caption.19}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {7.1}{\ignorespaces Technology stack and justification.}}{36}{table.caption.20}%
+\addvspace {10\p@ }

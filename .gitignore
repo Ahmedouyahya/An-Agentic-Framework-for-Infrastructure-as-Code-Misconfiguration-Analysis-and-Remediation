@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Virtual environment (GBs of libraries)
+Code/.venv/
+.venv/
+venv/
+
+# Secrets
+Code/.env
+.env
+
+# Large dataset output files
+Code/scraping/output/
+
+# Vector DB
+Code/chroma_db/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.nav
+*.snm
+*.vrb
+*.synctex.gz
+
+# pytest
+Code/.pytest_cache/
+Code/tests/__pycache__/
+Code/scraping/__pycache__/
+Code/src/**/__pycache__/
+
+# Claude internal
+.claude/
+.sixth/

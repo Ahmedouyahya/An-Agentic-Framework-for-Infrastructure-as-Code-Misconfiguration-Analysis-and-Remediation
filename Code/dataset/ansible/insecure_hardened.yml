@@ -1,0 +1,92 @@
+---
+# =============================================================================
+# DATASET FILE: ansible/insecure_hardened.yml
+# PURPOSE: Server hardening playbook with explicit, detectable security smells
+# Smells:
+#   [HARD-01] Hard-coded root password                    — CWE-259 / HEURISTIC
+#   [HARD-02] SSH PasswordAuthentication enabled          — CWE-287 / HEURISTIC
+#   [HARD-03] Firewall: all ports allowed (no deny-all)  — CWE-732 / HEURISTIC
+#   [HARD-04] TLS verification disabled in download task — CWE-295 / HEURISTIC
+#   [HARD-05] World-readable sensitive config file       — CWE-732 / HEURISTIC
+#   [HARD-06] Package installed with no version pin      — CWE-829 / HEURISTIC
+#   [HARD-07] Cron job runs as root without restriction  — CWE-250 / HEURISTIC
+# DETECTION: Heuristic patterns + regex matching
+# DIFFICULTY: LOW–MEDIUM (each smell is isolated on its own line)
+# =============================================================================
+
+- name: Insecure server hardening playbook
+  hosts: all
+  become: true
+  become_user: root                # SMELL [HARD-07 related]: elevates entire playbook to root
+
+  vars:
+    # SMELL [HARD-01]: Hard-coded root password in plaintext — CWE-259
+    root_password: "SuperSecretRoot123!"
+    db_password: "DBPass@2024"       # SMELL: another hardcoded credential — CWE-259
+    api_secret_key: "sk-live-abc123xyz789"  # SMELL: API key in vars — CWE-798
+
+  tasks:
+
+    # SMELL [HARD-06]: Package installed with no version constraint
+    - name: Install nginx without version pin
+      apt:
+        name: nginx                  # SMELL: should be nginx=1.24.* — CWE-829
+        state: latest                # SMELL: 'latest' is non-deterministic
+
+    # SMELL [HARD-02]: SSH allows password authentication — brute-force risk
+    - name: Configure SSH to allow password auth
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^PasswordAuthentication'
+        line: 'PasswordAuthentication yes'   # SMELL: should be 'no' — CWE-287
+
+    # SMELL [HARD-02 continued]: Root login still permitted
+    - name: Enable SSH root login
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^PermitRootLogin'
+        line: 'PermitRootLogin yes'          # SMELL: should be 'no' — CWE-250
+
+    # SMELL [HARD-04]: Download with TLS verification disabled — MITM risk
+    - name: Download application binary
+      get_url:
+        url: "http://releases.example.com/app-v2.tar.gz"  # SMELL: HTTP not HTTPS
+        dest: /tmp/app.tar.gz
+        validate_certs: no               # SMELL: disables cert validation — CWE-295
+
+    # SMELL [HARD-05]: Sensitive config file with world-readable permissions
+    - name: Deploy application configuration
+      copy:
+        content: |
+          DB_HOST=db.internal
+          DB_PASSWORD={{ db_password }}
+          API_KEY={{ api_secret_key }}
+        dest: /etc/app/config.env
+        mode: '0644'                     # SMELL: world-readable — CWE-732 (should be 0600)
+        owner: root
+        group: root
+
+    # SMELL [HARD-01]: Setting root password directly from plaintext variable
+    - name: Set root password
+      user:
+        name: root
+        password: "{{ root_password }}"  # SMELL: password from plaintext var — CWE-259
+
+    # SMELL [HARD-07]: Cron job running arbitrary command as root
+    - name: Schedule maintenance as root
+      cron:
+        name: "cleanup"
+        minute: "0"
+        hour: "2"
+        job: "rm -rf /tmp/* && curl -k http://update.example.com/update.sh | bash"
+        # SMELL: -k disables TLS + pipe-to-bash anti-pattern — CWE-295, CWE-494
+
+    # SMELL [HARD-03]: Flush all iptables rules (no deny-all policy)
+    - name: Open all firewall ports
+      iptables:
+        flush: yes                       # SMELL: removes all rules — CWE-732
+
+    - name: Allow all incoming connections
+      iptables:
+        chain: INPUT
+        policy: ACCEPT                   # SMELL: default policy should be DROP — CWE-732

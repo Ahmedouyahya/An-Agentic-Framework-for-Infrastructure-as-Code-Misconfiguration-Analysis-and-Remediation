@@ -1,0 +1,48 @@
+---
+# =============================================================================
+# DATASET FILE: ansible/insecure_users.yml
+# Smells: [ANS-U01] Passwordless sudo, [ANS-U02] Weak SSH config,
+#         [ANS-U03] Hardcoded SSH private key path with open perms
+# CWE: CWE-250, CWE-521, CWE-732
+# =============================================================================
+
+- name: Configure user accounts (insecure)
+  hosts: all
+  become: yes
+
+  tasks:
+    # SMELL [ANS-U01]: Passwordless sudo for all commands — CWE-250
+    - name: Add deploy user to sudoers without password
+      lineinfile:
+        path: /etc/sudoers
+        line: "deploy ALL=(ALL) NOPASSWD: ALL"   # SMELL: unrestricted passwordless sudo
+        validate: "visudo -cf %s"
+
+    # SMELL [ANS-U02]: SSH root login enabled — CWE-250
+    - name: Configure SSH to allow root login
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^PermitRootLogin"
+        line: "PermitRootLogin yes"    # SMELL: root SSH login should be disabled
+
+    # SMELL [ANS-U02]: SSH password authentication enabled
+    - name: Allow SSH password authentication
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^PasswordAuthentication"
+        line: "PasswordAuthentication yes"  # SMELL: should use key-based auth only
+
+    # SMELL [ANS-U03]: SSH private key with world-readable permissions — CWE-732
+    - name: Deploy SSH private key
+      copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEowIBAAKCAQEA0Z3VS5JJcds3xHn/ygWep4PAtEsHAAAAAAAAAAAAAA==
+          -----END RSA PRIVATE KEY-----
+        dest: /home/deploy/.ssh/id_rsa
+        mode: "0644"    # SMELL: private key should be 0600, not 0644
+
+    - name: Restart SSH
+      service:
+        name: sshd
+        state: restarted

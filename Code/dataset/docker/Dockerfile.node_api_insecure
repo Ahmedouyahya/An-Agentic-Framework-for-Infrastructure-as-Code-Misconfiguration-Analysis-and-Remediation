@@ -1,0 +1,55 @@
+# =============================================================================
+# DATASET FILE: docker/Dockerfile.node_api_insecure
+# PURPOSE: Node.js REST API with supply-chain and update hygiene smells
+# Smells:
+#   [DN-01] apt-get update on separate RUN (cache invalidation bypass)  — CWE-1104 / CKV_DOCKER_5
+#   [DN-02] APT used directly (should use official package manager)      — CWE-829  / CKV_DOCKER_9
+#   [DN-03] curl piped to bash (supply chain attack vector)             — CWE-494  / HEURISTIC
+#   [DN-04] npm install --unsafe-perm as root                           — CWE-250  / HEURISTIC
+#   [DN-05] Hardcoded JWT secret in ENV                                 — CWE-259  / HEURISTIC
+#   [DN-06] No USER instruction (runs as root)                          — CWE-250  / CKV_DOCKER_3
+#   [DN-07] No HEALTHCHECK defined                                       — CWE-693  / CKV_DOCKER_2
+# DETECTION: Checkov (CKV_DOCKER_2,3,5,9) + heuristic
+# DIFFICULTY: MEDIUM (supply-chain and runtime smells need semantic reasoning)
+# =============================================================================
+
+FROM node:18-slim
+
+# SMELL [DN-01]: apt-get update on its own RUN — does NOT guarantee fresh packages at build time
+# because Docker caches this layer; should be combined with apt-get install — CKV_DOCKER_5
+RUN apt-get update
+
+# SMELL [DN-02]: APT used in Dockerfile — prefer pre-built base images or distroless — CKV_DOCKER_9
+RUN apt-get install -y \
+    curl \
+    wget \
+    git \
+    build-essential
+
+# SMELL [DN-03]: Piping curl output directly to bash — remote script can contain arbitrary code
+# No integrity check (no --hash), no pinned version — CWE-494
+RUN curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
+
+WORKDIR /app
+
+COPY package*.json ./
+
+# SMELL [DN-04]: --unsafe-perm allows lifecycle scripts to run as root — CWE-250
+RUN npm install --unsafe-perm
+
+COPY . .
+
+# SMELL [DN-05]: Hardcoded JWT signing secret — tokens can be forged if image is extracted — CWE-259
+ENV JWT_SECRET="supersecret_jwt_key_hardcoded_do_not_use_in_prod" \
+    STRIPE_SECRET_KEY="sk_live_abc123xyz_hardcoded" \
+    NODE_ENV="production"
+
+EXPOSE 3000
+
+# SMELL [DN-06]: No USER instruction — all processes run as root inside the container — CKV_DOCKER_3
+# Missing: USER node
+
+# SMELL [DN-07]: No HEALTHCHECK — container health is invisible to orchestrators — CKV_DOCKER_2
+# Missing: HEALTHCHECK --interval=30s CMD curl -f http://localhost:3000/health || exit 1
+
+CMD ["node", "server.js"]

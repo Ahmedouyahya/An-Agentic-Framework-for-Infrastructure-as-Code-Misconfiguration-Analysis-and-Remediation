@@ -1,0 +1,55 @@
+# =============================================================================
+# DATASET FILE: kubernetes/insecure_deployment.yaml
+# Smells: [K8S-01] Privileged container, [K8S-02] Root user,
+#         [K8S-03] No resource limits, [K8S-04] Hardcoded secret as env var,
+#         [K8S-05] Host network access
+# Checkov IDs: CKV_K8S_16, CKV_K8S_6, CKV_K8S_11, CKV_K8S_35
+# CWE: CWE-250, CWE-259, CWE-400
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: insecure-app
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: insecure-app
+  template:
+    metadata:
+      labels:
+        app: insecure-app
+    spec:
+      # SMELL [K8S-05]: Container shares the host network namespace — CWE-250
+      hostNetwork: true
+
+      # SMELL [K8S-06]: Host PID namespace shared — CWE-250
+      hostPID: true
+
+      containers:
+        - name: app
+          image: myapp:latest      # SMELL [K8S-07]: mutable 'latest' tag — no pinning
+
+          securityContext:
+            # SMELL [K8S-01]: Privileged mode gives full host access — CKV_K8S_16 / CWE-250
+            privileged: true
+            # SMELL [K8S-02]: Running as root — CKV_K8S_6 / CWE-250
+            runAsUser: 0
+            runAsNonRoot: false
+            # SMELL [K8S-08]: Privilege escalation allowed — CKV_K8S_20
+            allowPrivilegeEscalation: true
+
+          env:
+            # SMELL [K8S-04]: Secret injected as plaintext env var — CWE-259
+            - name: DB_PASSWORD
+              value: "hardcoded_db_password_123"
+            - name: API_KEY
+              value: "sk-prod-supersecretapikey"
+
+          # SMELL [K8S-03]: No CPU/memory limits — CKV_K8S_11 / CWE-400
+          # resources block is entirely missing
+
+          ports:
+            - containerPort: 8080
+            - containerPort: 22    # SMELL [K8S-09]: SSH port exposed in container

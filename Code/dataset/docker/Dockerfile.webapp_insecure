@@ -1,0 +1,45 @@
+# =============================================================================
+# DATASET FILE: docker/Dockerfile.webapp_insecure
+# PURPOSE: Flask/nginx web application with configuration and privilege smells
+# Smells:
+#   [DW-01] Deprecated MAINTAINER instead of LABEL         — CWE-1104 / CKV_DOCKER_6
+#   [DW-02] ADD used for local file (should be COPY)       — CWE-829 / CKV_DOCKER_4
+#   [DW-03] Relative WORKDIR path                          — CWE-732 / CKV_DOCKER_10
+#   [DW-04] Port 22 (SSH) exposed                          — CWE-284 / CKV_DOCKER_1
+#   [DW-05] No USER instruction (runs as root)             — CWE-250 / CKV_DOCKER_3
+#   [DW-06] No HEALTHCHECK defined                         — CWE-693 / CKV_DOCKER_2
+#   [DW-07] Hardcoded Flask secret key in ENV              — CWE-259 / HEURISTIC
+# DETECTION: Checkov (CKV_DOCKER_1,2,3,4,6,10) + heuristic
+# DIFFICULTY: LOW (direct structural anti-patterns)
+# =============================================================================
+
+# SMELL [DW-01]: Deprecated MAINTAINER instruction — use LABEL maintainer= instead — CWE-1104 / CKV_DOCKER_6
+MAINTAINER devops@company.com
+
+FROM python:3.9
+
+# SMELL [DW-03]: Relative WORKDIR — should be an absolute path like /app — CKV_DOCKER_10
+WORKDIR app
+
+# SMELL [DW-07]: Hardcoded Flask secret key — anyone with image access can forge sessions — CWE-259
+ENV FLASK_SECRET_KEY="dev-secret-key-change-me-in-production" \
+    DB_HOST="postgres://root:root@db:5432/webapp" \
+    ADMIN_PASSWORD="admin"
+
+# SMELL [DW-02]: ADD used for local files — COPY is safer and explicit — CKV_DOCKER_4
+ADD requirements.txt .
+ADD . .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+# SMELL [DW-04]: SSH port exposed — creates unnecessary attack surface — CKV_DOCKER_1
+EXPOSE 5000
+EXPOSE 22
+
+# SMELL [DW-05]: No USER instruction — container runs as root by default — CKV_DOCKER_3
+# Missing: USER 1001:1001
+
+# SMELL [DW-06]: No HEALTHCHECK — orchestrators cannot detect unhealthy containers — CKV_DOCKER_2
+# Missing: HEALTHCHECK --interval=30s --timeout=5s CMD curl -f http://localhost:5000/health || exit 1
+
+CMD ["python", "app.py"]

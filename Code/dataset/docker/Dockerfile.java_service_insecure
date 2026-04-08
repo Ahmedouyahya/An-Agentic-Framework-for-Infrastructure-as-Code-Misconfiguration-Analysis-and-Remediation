@@ -1,0 +1,61 @@
+# =============================================================================
+# DATASET FILE: docker/Dockerfile.java_service_insecure
+# PURPOSE: Java microservice with privilege escalation and secrets smells
+# Smells:
+#   [DJ-01] Base image uses mutable :latest tag                         — CWE-829 / CKV_DOCKER_7
+#   [DJ-02] RUN chmod 4755 creates SETUID binary (privilege escalation) — CWE-269 / HEURISTIC
+#   [DJ-03] Database password hard-coded in ENV                         — CWE-259 / HEURISTIC
+#   [DJ-04] sudo installed and used inside container                    — CWE-250 / HEURISTIC
+#   [DJ-05] No USER instruction (runs as root)                          — CWE-250 / CKV_DOCKER_3
+#   [DJ-06] No HEALTHCHECK defined                                       — CWE-693 / CKV_DOCKER_2
+#   [DJ-07] ADD used to fetch remote JAR (no integrity verification)    — CWE-494 / CKV_DOCKER_4
+# DETECTION: Checkov (CKV_DOCKER_2,3,4,7) + heuristic
+# DIFFICULTY: HIGH (SETUID and sudo smells require semantic understanding)
+# =============================================================================
+
+# SMELL [DJ-01]: Mutable :latest tag on base image — breaks reproducible builds — CKV_DOCKER_7
+FROM openjdk:latest
+
+# Deprecated — retained to demonstrate another anti-pattern
+MAINTAINER backend-team@company.com
+
+# SMELL [DJ-04]: Installing sudo inside a container is a privilege escalation path — CWE-250
+RUN apt-get update && apt-get install -y \
+    sudo \
+    curl \
+    netcat-openbsd \
+    && echo "appuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+WORKDIR /app
+
+# SMELL [DJ-07]: ADD fetches a remote JAR with no checksum/signature verification — CKV_DOCKER_4
+# An attacker who controls the URL can inject malicious code — CWE-494
+ADD https://example.com/releases/app-service-1.0.jar /app/app.jar
+
+COPY config/ /app/config/
+
+# SMELL [DJ-02]: chmod 4755 sets the SETUID bit — allows binary to run as its owner (root)
+# Any user who can execute this binary gets root capabilities — CWE-269
+RUN chmod 4755 /app/app.jar
+
+# SMELL [DJ-03]: Hardcoded database credentials — visible in image layers and `docker inspect` — CWE-259
+ENV DB_URL="jdbc:postgresql://prod-db:5432/orders" \
+    DB_USERNAME="sa" \
+    DB_PASSWORD="Prod@12345!" \
+    SPRING_DATASOURCE_PASSWORD="Prod@12345!" \
+    ENCRYPTION_KEY="AES256_hardcoded_key_1234567890ab"
+
+EXPOSE 8080
+EXPOSE 8443
+# SMELL: Port 22 exposed — Java services don't need SSH — CKV_DOCKER_1
+EXPOSE 22
+
+# SMELL [DJ-05]: No USER instruction — JVM and all child processes run as root — CKV_DOCKER_3
+# Missing: RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+# Missing: USER appuser
+
+# SMELL [DJ-06]: No HEALTHCHECK — Spring Boot actuator endpoint not monitored — CKV_DOCKER_2
+# Missing: HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+#          CMD curl -f http://localhost:8080/actuator/health || exit 1
+
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

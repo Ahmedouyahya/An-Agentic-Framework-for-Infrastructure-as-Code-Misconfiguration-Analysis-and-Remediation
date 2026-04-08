@@ -1,0 +1,485 @@
+% ============================================================
+% SPEECH NOTES --- PFE Defense
+% An Agentic Framework for IaC Security Analysis and Remediation
+% Ahmedou Yahye Kheyri --- April 2026
+% ============================================================
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[a4paper, margin=2cm]{geometry}
+\usepackage{lmodern}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{mdframed}
+\usepackage{titlesec}
+\usepackage{hyperref}
+\usepackage{booktabs}
+
+\definecolor{slideblue}{RGB}{0,51,102}
+\definecolor{slidegold}{RGB}{180,130,0}
+\definecolor{cuegreen}{RGB}{20,120,50}
+\definecolor{qabrown}{RGB}{140,60,20}
+\definecolor{warnred}{RGB}{160,20,20}
+
+\titleformat{\section}{\large\bfseries\color{slideblue}}{}{0em}{}[\vspace{-0.3em}\rule{\linewidth}{1pt}]
+\titleformat{\subsection}{\normalsize\bfseries\color{cuegreen}}{}{0em}{\textbullet\ }
+
+\newmdenv[backgroundcolor=slideblue!8, linecolor=slideblue,
+          linewidth=1.5pt, roundcorner=4pt,
+          innerleftmargin=8pt, innerrightmargin=8pt,
+          innertopmargin=6pt, innerbottommargin=6pt]{slidebox}
+
+\newmdenv[backgroundcolor=cuegreen!8, linecolor=cuegreen,
+          linewidth=1.5pt, roundcorner=4pt,
+          innerleftmargin=8pt, innerrightmargin=8pt,
+          innertopmargin=6pt, innerbottommargin=6pt]{saybox}
+
+\newmdenv[backgroundcolor=qabrown!8, linecolor=qabrown,
+          linewidth=1.5pt, roundcorner=4pt,
+          innerleftmargin=8pt, innerrightmargin=8pt,
+          innertopmargin=6pt, innerbottommargin=6pt]{qabox}
+
+\newcommand{\timing}[1]{{\color{slidegold}\textbf{[#1]}}}
+\newcommand{\cue}[1]{{\color{cuegreen}\textit{#1}}}
+\newcommand{\warn}[1]{{\color{warnred}\textbf{Warning: #1}}}
+
+\begin{document}
+
+\begin{center}
+  {\Large\bfseries\color{slideblue} Speech Notes --- PFE Defense}\\[0.4em]
+  {\large\color{slidegold} An Agentic Framework for IaC Security Analysis and Remediation}\\[0.3em]
+  {\normalsize Ahmedou Yahye Kheyri \quad|\quad Supervised by Prof.\ Hala Bezine}\\[0.2em]
+  {\normalsize Faculty of Sciences of Sfax --- Master MRSI --- April 2026}\\[0.5em]
+  \rule{\linewidth}{1.5pt}
+\end{center}
+
+\noindent\textbf{Total time target: 25--30 minutes presentation + 10--15 minutes Q\&A}\\
+Each section timing is indicated with \timing{X min}.
+
+% ----------------------------------------------------------------
+\section*{TITLE SLIDE \timing{1 min}}
+% ----------------------------------------------------------------
+
+\begin{saybox}
+``Good morning / Good afternoon, honourable jury.
+My name is Ahmedou Yahye Kheyri, and I am pleased to present my Master's thesis work titled
+\textit{An Agentic Framework for Infrastructure as Code Misconfiguration Analysis and Automated Remediation},
+conducted under the supervision of Professor Hala Bezine
+at the Faculty of Sciences of Sfax.
+
+Let me take you through this work over the next 25 minutes.''
+\end{saybox}
+
+% ----------------------------------------------------------------
+\section{SECTION 1 --- Context \& Motivation \timing{4 min}}
+% ----------------------------------------------------------------
+
+\subsection{Slide: Infrastructure as Code --- The New Attack Surface}
+
+\begin{saybox}
+``Infrastructure as Code, or IaC, has become the dominant way modern organisations
+provision their cloud infrastructure. Instead of manually configuring servers,
+engineers write code in formats like Terraform, Ansible, Kubernetes, or Dockerfiles
+that automatically deploy complete cloud environments.
+
+The problem is that this code, just like application code, can contain security mistakes.
+Researchers have identified \textbf{62 distinct categories} of what they call `security smells' ---
+issues like hard-coded passwords, open firewall rules, missing encryption, and privileged containers.
+
+\textbf{And the existing tools only detect these smells. They do not fix them.}
+That is the gap this work addresses.''
+\end{saybox}
+
+\cue{Point to the arrows from IaC tools to the `Security Smells' cloud, then to the badge `No automated fix'.}
+
+\subsection{Slide: Research Gap \& Our Contribution}
+
+\begin{saybox}
+``Let me be precise about the limitation. Existing tools like Checkov and Terrascan are
+excellent at detecting problems --- but they stop there. They print a list of failures
+and leave the engineer to fix them manually.
+
+On the other side, there are LLM-based approaches that can propose fixes,
+but they suffer from hallucinations and have no safety net. A wrong patch
+that passes a developer's eye check but introduces a new vulnerability is worse than no patch at all.
+
+Our answer is: \textbf{close the loop}. Detect, retrieve relevant context, generate a fix,
+and then \textbf{validate that fix with an independent certified tool} before delivering it.
+That loop is what makes our framework `agentic'.''
+\end{saybox}
+
+% ----------------------------------------------------------------
+\section{SECTION 2 --- State of the Art \timing{3 min}}
+% ----------------------------------------------------------------
+
+\subsection{Slide: Related Work at a Glance}
+
+\begin{saybox}
+``Looking at the evolution of the field, there are three eras.
+
+First, before 2022, work focused on metrics and machine learning to \textit{detect} smells.
+Rahman et al.\ used ML classifiers; Dalla Palma used random forests. Detection only.
+
+Then came rule-based scanners: Checkov and Terrascan. Very reliable detection,
+but still zero fix generation.
+
+The third era, from 2023 onwards, brought LLMs into the picture.
+SecLLM fine-tunes a language model specifically on IaC code to generate secure scripts.
+GenSIAC applies GPT to produce IaC patches. Both generate fixes ---
+\textbf{but neither validates the output.}
+
+Simultaneously, in NLP research, the CRAG paper by Yao et al. introduced
+Corrective Retrieval-Augmented Generation --- the idea of refining retrieval
+when the initial result is poor.
+
+\textbf{We take the best of all three eras: LLM fix generation (era 3),
+combined with certified validation (era 2), and corrective RAG (from NLP).}''
+\end{saybox}
+
+% ----------------------------------------------------------------
+\section{SECTION 3 --- Framework Architecture \timing{6 min}}
+% ----------------------------------------------------------------
+
+\subsection{Slide: System Architecture --- The Big Picture}
+
+\begin{saybox}
+``The framework has five modules orchestrated by a central agent.
+
+A Terraform or Ansible file enters on the left. The Contextual Analyzer reads it,
+detects the tool type, and runs Checkov to identify which security smells are present.
+
+That list of smells goes to the Knowledge Base and RAG Retriever,
+which searches our vector database of 62 security patterns to find
+the most relevant remediation knowledge.
+
+The Fix Generator --- an LLM --- receives the original code,
+the list of smells, and the retrieved context, and produces a unified diff patch.
+
+That patch goes to the External Validator, which applies it to a temporary file
+and runs Checkov again. If all targeted issues are gone and no new ones appeared,
+the patch is valid. Otherwise, we retry --- up to three times --- with a more conservative prompt.
+
+Finally, the Patch Formatter produces a clean unified diff
+with a natural language explanation and CWE references.
+
+\textbf{The key point: the LLM is never trusted. The Validator is the final judge.}''
+\end{saybox}
+
+\cue{Trace the arrows with your hand or pointer: input → analyzer → KB → generator → validator → either output or dashed retry arrow.}
+
+\subsection{Slide: Module 1 --- Contextual Analyzer}
+
+\begin{saybox}
+``The Contextual Analyzer has two responsibilities.
+
+First, it identifies the IaC tool type from the file extension and content:
+Terraform files have `resource' and `provider' keywords;
+Kubernetes files have `apiVersion' and `kind: Deployment'; and so on.
+
+Second, it runs Checkov and parses its JSON output to extract the exact
+Checkov check IDs that failed, along with line numbers and descriptions.
+If Checkov is unavailable, a regex-based fallback uses heuristic patterns
+to detect the most common smell types.
+
+This module is already fully tested with 40+ unit tests covering all four IaC tools.''
+\end{saybox}
+
+\subsection{Slide: Modules 2 \& 3 --- Knowledge Base \& RAG Retriever}
+
+\begin{saybox}
+``The Knowledge Base is built on ChromaDB, a local vector database.
+We embed all 62 categories from the War et al.\ taxonomy using
+the `all-MiniLM-L6-v2' model --- a compact 80-megabyte free embedding model.
+
+Each entry in the knowledge base contains: the smell name, category, description,
+associated CWE identifiers, and a fix example.
+
+The retrieval follows the CRAG strategy. On attempt one, we query with the raw smell descriptions.
+If the patch fails validation, attempt two adds `minimal targeted changes' to the query.
+Attempt three uses `most conservative fix'. Each retry makes the prompt more conservative
+to escape the LLM's failure mode.''
+\end{saybox}
+
+\subsection{Slide: Module 4 --- Fix Generator}
+
+\begin{saybox}
+``The Fix Generator is LLM-agnostic. It auto-detects which API key is available in the environment
+and selects the corresponding backend: Anthropic's Claude, OpenAI's GPT, Meta's Llama via OpenRouter,
+or MiniMax. The user needs zero code changes --- just set the environment variable.
+
+The system prompt instructs the LLM to output \textit{only} a unified diff ---
+minimal changes, no refactoring. Then it asks for a confidence score between 0.0 and 1.0.
+Any patch scoring below 0.6 is rejected before even being sent to the validator.
+The temperature is set to 0.2 for deterministic, reproducible output.''
+\end{saybox}
+
+\subsection{Slide: Module 5 --- External Validator (Key Innovation)}
+
+\begin{saybox}
+``This is the most important module in the framework.
+
+The validator applies the proposed patch to a temporary copy of the original file.
+Then it runs Checkov on both the original and the patched version.
+It compares the check IDs: the targeted smells must have disappeared, and no new ones must appear.
+
+This is the formula on the slide: smell\_ids is a subset of removed IDs,
+and the set of new issues is empty.
+
+Without this module, we would have a passive RAG system ---
+smart, but unverified. With this module, we have a closed-loop agentic system.''
+\end{saybox}
+
+% ----------------------------------------------------------------
+\section{SECTION 4 --- Evaluation Dataset \timing{2 min}}
+% ----------------------------------------------------------------
+
+\subsection{Slide: Dataset Composition \& Coverage}
+
+\begin{saybox}
+``We built a hand-labelled evaluation dataset of eight IaC files covering all four tools.
+Each file was selected to contain representative security smells, labelled with
+the Checkov check ID, the CWE identifier, and the line number.
+
+In total, 27 smells are labelled. All smells were manually verified by running Checkov.
+The CWE distribution shows that misconfigured permissions (CWE-250 and CWE-732) are
+the most frequent, which mirrors what is found in real-world GitHub repositories.''
+\end{saybox}
+
+\subsection{Slide: Terraform S3 Example}
+
+\begin{saybox}
+``As a concrete example, this Terraform file for an S3 bucket has four smells:
+the ACL is set to public-read (CWE-732), encryption is missing (CWE-312),
+versioning is disabled (CWE-284), and the public access block is not configured.
+
+All 58 automated tests for the dataset, analyzer, validator, and formatter pass in under four minutes.''
+\end{saybox}
+
+% ----------------------------------------------------------------
+\section{SECTION 5 --- Evaluation Methodology \timing{2 min}}
+% ----------------------------------------------------------------
+
+\subsection{Slide: 4-Layer Evaluation Framework}
+
+\begin{saybox}
+``We evaluate the framework on four independent layers.
+
+Layer 1 measures detection accuracy: precision, recall, F1, and macro-F1 per tool and smell type.
+
+Layer 2 measures retrieval quality: hit rate at K=1, 3, 5, and the Mean Reciprocal Rank.
+We also plan to run RAGAS once the full ChromaDB integration is deployed.
+
+Layer 3 measures remediation: Patch Validity Rate, Smell Elimination Rate,
+No New Issue Rate, and confidence calibration.
+
+Layer 4 measures the agentic loop: First Attempt Success Rate,
+and the delta improvement at retry 2 and retry 3.
+
+For the ablation study, we compare four configurations:
+Config A is Checkov alone --- the baseline.
+Config B adds the LLM without RAG.
+Config C adds passive RAG without retry.
+Config D is the full pipeline with CRAG and the validator.''
+\end{saybox}
+
+% ----------------------------------------------------------------
+\section{SECTION 6 --- Results \timing{3 min}}
+% ----------------------------------------------------------------
+
+\subsection{Slide: Layer 1 --- Detection Results (Config A)}
+
+\begin{saybox}
+``Config A is our baseline: we compare Checkov's output directly against our ground truth.
+
+The numbers look discouraging at first: precision 0.084, F1 0.132.
+But this is \textbf{expected and by design}.
+
+Checkov runs over 500 built-in checks. Our ground truth labels 23 specific smells.
+So Checkov fires 83 checks on our 8 files, but only 7 of those match our labelled smells.
+This is not a Checkov failure --- it is a matching problem.
+
+Config D, the full pipeline, will resolve this because the Contextual Analyzer filters
+Checkov's output to only the checks relevant to the specific smells in our taxonomy.
+
+Notably, Docker achieves F1=0.40 even in Config A, while Ansible scores zero.
+This is because the Ansible smells in our dataset --- like task naming conventions ---
+have no corresponding Checkov check IDs. This motivates integrating GLITCH,
+which specialises in Ansible and Chef.''
+\end{saybox}
+
+\subsection{Slide: Layers 2, 3, 4 --- Retrieval and Pending}
+
+\begin{saybox}
+``Layer 2, retrieval, is already excellent: Hit Rate of 1.0 at all K values.
+This was measured using a keyword-based approximation across the 62-entry taxonomy.
+For every query derived from a smell description, the correct category is returned
+as the top result.
+
+Layers 3 and 4 are pending because they require a live LLM call.
+The targets we set are: Patch Validity Rate above 70\%,
+Smell Elimination Rate above 80\%, and First Attempt Success Rate above 50\%.
+
+The infrastructure to run Config D is fully ready ---
+it requires only providing an API key.''
+\end{saybox}
+
+% ----------------------------------------------------------------
+\section{SECTION 7 --- Implementation Status \timing{2 min}}
+% ----------------------------------------------------------------
+
+\subsection{Slide: Progress Overview}
+
+\begin{saybox}
+``All six modules are implemented and tested.
+58 unit tests pass in under four minutes.
+The evaluation script supports both baseline mode (no API key) and full mode.
+
+The remaining work is: running Config D with a live LLM, deploying ChromaDB
+with the full taxonomy to get RAGAS metrics, integrating GLITCH for Ansible,
+and completing the ablation study comparison.''
+\end{saybox}
+
+% ----------------------------------------------------------------
+\section{SECTION 8 --- Conclusion \timing{2 min}}
+% ----------------------------------------------------------------
+
+\subsection{Slide: Contributions \& Future Work}
+
+\begin{saybox}
+``To summarise our four scientific contributions:
+
+First, we designed the first agentic framework that closes the full loop
+from detection to validated remediation for IaC security.
+
+Second, we adapted CRAG for the IaC domain, where query refinement
+is guided by validator feedback rather than retrieval confidence scores.
+
+Third, we proposed a four-layer evaluation framework with 18 metrics
+that covers detection, retrieval, remediation quality, and agentic loop efficiency.
+
+Fourth, we built and released a curated labelled dataset of 8 IaC files
+across 4 tools with 27 ground-truth smells aligned to the 62-category taxonomy.
+
+For future work: integrating GLITCH, fine-tuning on the GenSIAC dataset,
+expanding to real GitHub repositories, and exploring a multi-agent architecture.''
+\end{saybox}
+
+\begin{saybox}
+\textbf{Closing:} ``Thank you for your attention. I am happy to take your questions.''
+\end{saybox}
+
+% ================================================================
+\newpage
+\section*{\color{qabrown} PROBABLE QUESTIONS AND SUGGESTED ANSWERS}
+% ================================================================
+
+\begin{qabox}
+\textbf{Q1: Why use Checkov as both the detector and the validator? Isn't that circular?}
+
+\textbf{Answer:} It is intentional, not circular. In the detection phase, Checkov runs on the \textit{original} file to identify what is wrong. In the validation phase, Checkov runs on the \textit{patched} file to verify the patch actually fixed the issue. The two runs are on different files at different points in the pipeline. This design mirrors continuous integration: you use the same linter before and after a fix to confirm the fix is correct.
+
+Furthermore, the External Validator is designed to be swappable. If Terrascan or a custom rule set is preferred, only the validator module changes --- nothing else.
+\end{qabox}
+
+\begin{qabox}
+\textbf{Q2: Why not simply fine-tune the LLM on IaC security data instead of using RAG?}
+
+\textbf{Answer:} Fine-tuning and RAG are complementary, not competing. Fine-tuning (as in SecLLM and GenSIAC) bakes knowledge into model weights. But it has three weaknesses in our context: (1) it is expensive and requires many GPU hours; (2) new vulnerability categories require retraining; and (3) it still produces unverified output. RAG gives us up-to-date, interpretable knowledge retrieval without retraining. Combined with the validator, we get safety without full reliance on model weights. Our future work includes fine-tuning on GenSIAC data \textit{in addition} to RAG, not instead of it.
+\end{qabox}
+
+\begin{qabox}
+\textbf{Q3: Your dataset is only 8 files and 27 smells. How can you draw statistically meaningful conclusions?}
+
+\textbf{Answer:} That is a fair challenge. This version of the dataset is a proof-of-concept ground truth, carefully hand-labelled and verified. The goal for this thesis phase is to demonstrate that the pipeline works correctly end-to-end and to establish evaluation metrics and infrastructure. The ablation study is designed to show relative improvements (Config B vs C vs D), which is meaningful even at small scale. The next step --- which we explicitly list as future work --- is to scale the dataset from GitHub repositories. Tools like FixCheck and the dataset from the SecLLM paper have hundreds of examples, and we plan to integrate those.
+\end{qabox}
+
+\begin{qabox}
+\textbf{Q4: What happens when the LLM produces a patch that passes Checkov but is semantically wrong (e.g., it deletes the resource instead of fixing it)?}
+
+\textbf{Answer:} This is a real limitation. Checkov is a static analysis tool: it cannot detect semantic correctness. Our Patch Validity criterion checks that (1) targeted Checkov IDs disappear and (2) no new IDs appear --- but it does not check semantic equivalence. Two mitigations are planned: (1) the prompt explicitly says ``minimal change, no refactoring'' and includes a low temperature (0.2) to reduce creative output; (2) in future versions, we plan to add a semantic diff check that warns if more than N\% of the original file is changed. For now, the unified diff output allows a human reviewer to visually inspect the change before deployment.
+\end{qabox}
+
+\begin{qabox}
+\textbf{Q5: Why did you choose ChromaDB over FAISS or Pinecone?}
+
+\textbf{Answer:} Three reasons: (1) ChromaDB runs entirely locally with no external API, which means no data leaves the machine --- important for security-sensitive code analysis; (2) it has a simple Python SDK and integrates directly with LangChain and LlamaIndex; (3) for our taxonomy size (62 entries, expandable to a few thousand), the overhead of a managed service like Pinecone is not justified. FAISS is a strong alternative for raw performance, but ChromaDB provides a higher-level interface with persistent storage out of the box.
+\end{qabox}
+
+\begin{qabox}
+\textbf{Q6: How do you handle the case where Checkov cannot parse the IaC file (e.g., incomplete or syntactically invalid code)?}
+
+\textbf{Answer:} The Contextual Analyzer has a two-level design: the primary path uses Checkov (subprocess call with JSON output), and the fallback uses regex heuristic patterns that match common smell signatures directly in the source text. If Checkov returns a non-zero exit code or produces no output, the analyzer falls back to the heuristics. The unit tests cover both paths. The heuristics cover the four most critical smell types: hard-coded credentials (CWE-798), open CIDR blocks (CWE-732), privileged containers (CWE-250), and TLS disabled (CWE-295).
+\end{qabox}
+
+\begin{qabox}
+\textbf{Q7: What is CRAG and how exactly is it different from standard RAG?}
+
+\textbf{Answer:} Standard RAG retrieves documents once and feeds them to the LLM. If the retrieved documents are not relevant or the LLM produces a wrong answer, there is no recovery. CRAG (Corrective RAG, Yao et al. 2024) adds a retrieval evaluator: if the retrieval quality is judged poor, it refines the query and retrieves again. In our adaptation, the ``retrieval evaluator'' is not a separate model --- it is the Checkov validator. If the generated patch fails validation, we treat that as a signal that the retrieved context was insufficient or the LLM misapplied it, so we augment the query for the next attempt. Attempt 2 adds ``minimal targeted changes''; attempt 3 adds ``most conservative fix''. This guided retry is our domain-specific CRAG adaptation.
+\end{qabox}
+
+\begin{qabox}
+\textbf{Q8: What is the maximum number of retries, and what happens if all retries fail?}
+
+\textbf{Answer:} The maximum is 3 attempts (configurable). If all three fail, the system returns the best patch produced (highest confidence score among the three attempts), clearly marked as ``UNVALIDATED'' with an explanation of which Checkov checks were not resolved. The user is never left without output, but the output's validation status is transparently communicated. In our design, returning an unvalidated patch with a warning is safer than returning nothing.
+\end{qabox}
+
+\begin{qabox}
+\textbf{Q9: Why is Ansible getting F1=0 in Config A?}
+
+\textbf{Answer:} The Ansible smells we labelled are task-level issues --- such as tasks missing a `name' attribute, or using `shell' instead of `command'. These are style and security smells that Checkov does not have built-in checks for. Checkov's Ansible support is primarily focused on module-level configuration (e.g., SSH settings, privilege escalation). GLITCH, which uses NLP to analyse YAML task semantics, is designed for exactly these smells. Adding GLITCH to the External Tool Integrator module is our planned next step.
+\end{qabox}
+
+\begin{qabox}
+\textbf{Q10: How does your framework compare to GitHub Copilot or similar AI coding assistants?}
+
+\textbf{Answer:} GitHub Copilot and similar assistants are general-purpose code generation tools. They are not designed for security analysis and have no validation step. If you ask Copilot to ``fix the security issues in this Terraform file'', it might produce plausible-looking code that still fails Checkov. Our framework is domain-specific: (1) it uses a curated knowledge base of 62 IaC security categories with CWE references; (2) it has a certified validator as the judge; (3) it adapts its retrieval strategy across retries. The trade-off is that we are narrower in scope but stronger in correctness guarantees for the IaC security domain.
+\end{qabox}
+
+\begin{qabox}
+\textbf{Q11: Is the framework applicable to multi-cloud environments?}
+
+\textbf{Answer:} Yes. The framework is tool-agnostic at the IaC level. Terraform files targeting AWS, Azure, or GCP all follow the same HCL syntax. Checkov has built-in checks for all three clouds, so the validator works transparently. The Knowledge Base is independent of the cloud provider --- the 62-category taxonomy covers cross-cloud concepts like encryption, access control, and network exposure. Extending the knowledge base with provider-specific entries is straightforward.
+\end{qabox}
+
+% ================================================================
+\section*{KEY NUMBERS TO MEMORISE}
+% ================================================================
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Number} & \textbf{Meaning} & \textbf{Source}\\
+\midrule
+62 & Security smell categories & War et al.\ 2025 taxonomy\\
+8 & Evaluation files & Dataset v1.0\\
+27 & Labelled smells & Dataset v1.0\\
+58 & Tests passing & pytest, 3m29s\\
+4 & IaC tools supported & Terraform, Ansible, K8s, Docker\\
+3 & Max retry attempts & CRAG loop design\\
+0.6 & Confidence threshold & SecLLM-inspired filtering\\
+0.2 & LLM temperature & Determinism setting\\
+1.000 & Hit Rate @ K=1,3,5 & Layer 2 results\\
+0.084 & Config A Precision & Expected (baseline, not target)\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ================================================================
+\section*{ACRONYMS TO EXPLAIN CLEARLY IF ASKED}
+% ================================================================
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{IaC} --- Infrastructure as Code: code that provisions cloud infrastructure
+  \item \textbf{RAG} --- Retrieval-Augmented Generation: LLM + external knowledge retrieval
+  \item \textbf{CRAG} --- Corrective RAG: RAG with an iterative retrieval refinement loop
+  \item \textbf{CWE} --- Common Weakness Enumeration: standardised vulnerability catalogue (MITRE)
+  \item \textbf{PVR} --- Patch Validity Rate: \% of patches passing the validator
+  \item \textbf{SER} --- Smell Elimination Rate: \% of targeted smells actually removed
+  \item \textbf{NNIR} --- No New Issue Rate: \% of patches introducing zero new Checkov failures
+  \item \textbf{FA-SR} --- First Attempt Success Rate: \% passing on the first LLM call
+  \item \textbf{MRR} --- Mean Reciprocal Rank: retrieval quality metric (1 = perfect)
+  \item \textbf{GenSIAC} --- Generating Secure IaC Code: fine-tuned GPT model for IaC patches
+  \item \textbf{SecLLM} --- Security-focused LLM fine-tuned on Terraform security data
+\end{itemize}
+
+\end{document}

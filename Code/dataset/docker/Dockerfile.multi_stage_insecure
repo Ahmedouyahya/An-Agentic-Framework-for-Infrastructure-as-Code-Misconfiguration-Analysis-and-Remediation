@@ -1,0 +1,71 @@
+# =============================================================================
+# DATASET FILE: docker/Dockerfile.multi_stage_insecure
+# PURPOSE: Multi-stage build with secrets and privilege smells
+# Smells:
+#   [DS2-01] Build secret baked into final image via ARG   — CWE-259 / CKV_DOCKER_3
+#   [DS2-02] Runs as root (no USER instruction)            — CWE-250 / CKV_DOCKER_2
+#   [DS2-03] Package installed with no version pin         — CWE-829 / HEURISTIC
+#   [DS2-04] COPY . . in final stage (broad copy)         — CWE-732 / HEURISTIC
+#   [DS2-05] Secrets exposed via ENV in build stage        — CWE-259 / CKV_DOCKER_3
+#   [DS2-06] Base image uses mutable latest tag            — CWE-829 / CKV_DOCKER_7
+#   [DS2-07] No HEALTHCHECK defined                        — CWE-693 / CKV_DOCKER_8
+# DETECTION: Checkov + heuristic patterns
+# DIFFICULTY: MEDIUM (multi-stage makes secrets harder to spot automatically)
+# =============================================================================
+
+# ---- BUILD STAGE ----
+FROM node:latest AS builder          # SMELL [DS2-06]: mutable :latest tag — CWE-829
+
+WORKDIR /app
+
+# SMELL [DS2-05]: Secret exposed as ENV in build stage (persists in layer history)
+ENV NPM_TOKEN=npm_live_token_abc123xyz
+ENV DATABASE_URL=postgres://admin:password@db:5432/prod   # SMELL: full DB URL with password
+
+# SMELL [DS2-03]: Installing packages without pinned versions
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    wget
+    # SMELL: no version pins (curl=7.88.1-10, git=1:2.39.2-1.1)
+
+COPY package*.json ./
+RUN npm install --unsafe-perm       # SMELL: --unsafe-perm bypasses security
+
+# SMELL [DS2-04]: Copies .git directory and .env files into build context
+COPY . .
+
+RUN npm run build
+
+# ---- FINAL STAGE ----
+FROM ubuntu:latest                   # SMELL [DS2-06]: mutable base image — CKV_DOCKER_7
+
+WORKDIR /app
+
+# SMELL [DS2-01]: Secret baked from build ARG into final image ENV
+ARG API_KEY
+ENV API_KEY=${API_KEY}              # SMELL: ARG value persists in ENV — CWE-259
+
+ENV NODE_ENV=production
+ENV SECRET_KEY=hardcoded_flask_secret_key_do_not_use   # SMELL: hardcoded secret — CWE-259
+
+# SMELL [DS2-03]: No version pinning on apt packages
+RUN apt-get update && apt-get install -y \
+    nodejs \
+    curl
+
+# SMELL [DS2-04]: Broad copy from build stage (includes test files, etc.)
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app .          # SMELL: copies entire context including sensitive files
+
+EXPOSE 3000
+EXPOSE 22                           # SMELL: SSH port exposed — attack surface
+
+# SMELL [DS2-02]: No USER instruction — container runs as root — CKV_DOCKER_2
+# Missing: USER 1001
+
+# SMELL [DS2-07]: No HEALTHCHECK — CKV_DOCKER_8
+# Missing: HEALTHCHECK --interval=30s CMD curl -f http://localhost:3000/health
+
+CMD ["node", "server.js"]

@@ -1,0 +1,430 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{csquotes}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{array}
+
+\lstdefinestyle{iac}{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!8},
+  rulecolor=\color{gray!40},
+  xleftmargin=8pt,
+  xrightmargin=8pt,
+  aboveskip=6pt,
+  belowskip=6pt,
+}
+
+\lstdefinestyle{json}{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!8},
+  rulecolor=\color{gray!40},
+  xleftmargin=8pt,
+  xrightmargin=8pt,
+  aboveskip=6pt,
+  belowskip=6pt,
+}
+
+\title{IaC Security Dataset\\
+\large Construction and Description Report}
+\author{Ahmedou Yahye Kheyri\\Supervisor: Hala Bezine\\
+\small Faculté des Sciences de Sfax --- Master MRSI}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This report documents the construction of a large-scale dataset of Infrastructure as Code (IaC) security smells, built to support the agentic security framework developed in this thesis. The dataset contains \textbf{33,667 unique records} spanning five IaC technologies --- Terraform, Kubernetes, Ansible, Docker, and CloudFormation --- of which \textbf{32,960 (97.9\%)} include both a vulnerable version of a file and its corrected counterpart. Records are collected from real developer commits on GitHub and from the test resources of major IaC security scanners. Each record is annotated with the security smell type, a CWE identifier, severity level, and the associated scanner check identifier. The dataset is split into training (80\%), validation (10\%), and test (10\%) sets.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Motivation}
+% ============================================================
+
+The agentic framework designed in this thesis requires a knowledge base of IaC security smells and their fixes to power the Retrieval-Augmented Generation (RAG) component. Existing public resources are either too small, limited to a single IaC technology, or lack corresponding fix examples. A dedicated dataset was therefore constructed from scratch to cover all five IaC technologies targeted by the framework, with real before/after fix pairs drawn from actual developer activity on GitHub.
+
+% ============================================================
+\section{Collection Methodology}
+% ============================================================
+
+Data was collected using a custom asynchronous Python scraper that queries the GitHub API. Three strategies were used in combination.
+
+\subsection{GitHub Commit Search (Primary Source)}
+
+The scraper submits targeted search queries to the GitHub Commit Search API. Each query retrieves commits whose messages contain security-related keywords. For each matching commit, the scraper:
+\begin{enumerate}[leftmargin=1.5cm]
+  \item Identifies which changed files are IaC files (\texttt{.tf}, \texttt{.yaml}, \texttt{.yml}, \texttt{Dockerfile}).
+  \item Downloads the file content \emph{before} the fix using the parent commit SHA.
+  \item Downloads the file content \emph{after} the fix from the commit's current state.
+  \item Extracts the unified diff.
+  \item Classifies the security smell type from the removed lines of the diff.
+\end{enumerate}
+
+Sixty search queries were used, targeting all five IaC tools. Examples:
+\begin{itemize}[leftmargin=1.2cm]
+  \item \texttt{fix hardcoded credentials terraform}
+  \item \texttt{fix privileged container kubernetes}
+  \item \texttt{remove root user Dockerfile}
+  \item \texttt{fix s3 bucket encryption terraform}
+  \item \texttt{allowPrivilegeEscalation false kubernetes}
+  \item \texttt{CWE-798 fix}
+\end{itemize}
+
+Each query fetches up to 300 commits (10 pages of 30). Two GitHub accounts were used in parallel, each covering a different half of the query set, to maximise collection throughput while respecting the API rate limit of 5,000 requests per hour per account.
+
+\subsection{IaC Security Scanner Resources}
+
+Two well-known IaC security scanners provide labelled example files as part of their test suites:
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Checkov} (Bridgecrew): each security check has a \textsc{failed} example and a \textsc{passed} example, forming a natural before/after pair.
+  \item \textbf{KICS} (Checkmarx): each query rule includes \emph{positive} (vulnerable) and \emph{negative} (compliant) test files.
+\end{itemize}
+
+\subsection{Known Vulnerable Repositories}
+
+Several curated repositories contain intentionally insecure IaC configurations used for security training:
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{TerraGoat} (bridgecrewio): deliberately vulnerable Terraform.
+  \item \textbf{Kubernetes-Goat} (madhuakula): deliberately vulnerable Kubernetes manifests.
+  \item \textbf{OWASP WrongSecrets}: secrets management anti-patterns in IaC.
+\end{itemize}
+
+These contribute insecure-only records (no fix available) which are useful for smell detection but not for fix generation.
+
+\subsection{Deduplication}
+
+After collection, all records are deduplicated by computing a SHA-256 hash of the \texttt{code\_before} field. When duplicates exist, the record with the most complete annotation (fix available, more smells labelled) is kept. This step removed 4,165 duplicate records from the raw collection of 37,832 entries.
+
+% ============================================================
+\section{Dataset Statistics}
+% ============================================================
+
+\begin{table}[h]
+\centering
+\caption{Overall dataset statistics}
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Property} & \textbf{Value} \\
+\midrule
+Total unique records            & 33,667 \\
+Records with fix (before + after) & 32,960 (97.9\%) \\
+Records without fix (insecure only) & 707 (2.1\%) \\
+Duplicates removed              & 4,165 \\
+Train / Validation / Test       & 26,931 / 3,365 / 3,371 \\
+IaC technologies covered        & 5 \\
+Security smell types            & 18 \\
+Source repositories             & $>$2,000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Distribution by IaC tool}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{IaC Tool} & \textbf{Records} & \textbf{\%} \\
+\midrule
+Terraform      & 16,386 & 48.7\% \\
+Kubernetes     & 9,242  & 27.5\% \\
+Ansible        & 4,498  & 13.4\% \\
+Docker         & 2,471  &  7.3\% \\
+CloudFormation & 1,070  &  3.2\% \\
+\midrule
+\textbf{Total} & \textbf{33,667} & 100\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Distribution by data source}
+\begin{tabular}{@{}llrr@{}}
+\toprule
+\textbf{Source} & \textbf{Description} & \textbf{Records} & \textbf{Has Fix} \\
+\midrule
+GitHub Commits & Real security fix commits & 31,348 & Yes \\
+KICS           & Checkmarx scanner examples & 1,336 & Yes \\
+Checkov        & Bridgecrew scanner examples & 502   & Yes \\
+GitHub Code    & Insecure files via pattern search & 320 & No \\
+Known Repos    & TerraGoat, KuberGoat, etc. & 144 & No \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================
+\section{Record Structure}
+% ============================================================
+
+Each record is stored as a JSON object. The key fields are described below.
+
+\begin{table}[h]
+\centering
+\caption{Record schema}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Field} & \textbf{Type} & \textbf{Description} \\
+\midrule
+\texttt{id}              & string  & Unique record identifier \\
+\texttt{source}          & string  & Origin (e.g.\ \texttt{github\_commit}, \texttt{kics}) \\
+\texttt{iac\_tool}       & string  & IaC technology (\texttt{terraform}, \texttt{kubernetes}, etc.) \\
+\texttt{code\_before}    & string  & Insecure version of the file \\
+\texttt{code\_after}     & string  & Fixed version (null if unavailable) \\
+\texttt{diff}            & string  & Unified diff between before and after \\
+\texttt{has\_fix}        & boolean & Whether a fix is available \\
+\texttt{smells}          & array   & Detected security smells (see Table~\ref{tab:smell}) \\
+\texttt{labels}          & array   & Flat list of tags (smell types, CWEs, severity) \\
+\texttt{split}           & string  & \texttt{train}, \texttt{val}, or \texttt{test} \\
+\midrule
+\texttt{repo}            & string  & Source repository (\texttt{owner/repo}) \\
+\texttt{commit\_sha}     & string  & Git commit hash \\
+\texttt{commit\_message} & string  & Commit message (first 500 characters) \\
+\texttt{commit\_date}    & string  & ISO-8601 commit date \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Smell annotation sub-schema}
+\label{tab:smell}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Field} & \textbf{Type} & \textbf{Description} \\
+\midrule
+\texttt{type}        & string  & Smell identifier (e.g.\ \texttt{hardcoded\_credential}) \\
+\texttt{cwe}         & string  & CWE identifier (e.g.\ \texttt{CWE-798}) \\
+\texttt{checkov\_id} & string  & Associated Checkov check (e.g.\ \texttt{CKV\_AWS\_41}) \\
+\texttt{severity}    & string  & \texttt{CRITICAL}, \texttt{HIGH}, \texttt{MEDIUM}, or \texttt{LOW} \\
+\texttt{category}    & string  & \texttt{Security}, \texttt{Configuration Data}, or \texttt{Dependency} \\
+\texttt{description} & string  & Description of the detected instance \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================
+\section{Security Smell Taxonomy}
+% ============================================================
+
+The dataset covers 18 security smell types aligned with the taxonomy of War et al.\ (2025) and mapped to CWE identifiers.
+
+\begin{table}[h]
+\centering
+\caption{Security smell types covered by the dataset}
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Smell Type} & \textbf{CWE} & \textbf{Severity} & \textbf{Category} \\
+\midrule
+\texttt{hardcoded\_credential}          & CWE-798  & CRITICAL & Security \\
+\texttt{hardcoded\_password}            & CWE-259  & HIGH     & Security \\
+\texttt{secrets\_in\_env}               & CWE-798  & CRITICAL & Security \\
+\texttt{overly\_permissive\_cidr}       & CWE-732  & HIGH     & Security \\
+\texttt{overly\_permissive\_acl}        & CWE-732  & HIGH     & Security \\
+\texttt{overly\_permissive\_iam}        & CWE-732  & HIGH     & Security \\
+\texttt{privileged\_container}          & CWE-250  & HIGH     & Security \\
+\texttt{root\_user}                     & CWE-250  & MEDIUM   & Security \\
+\texttt{allow\_privilege\_escalation}   & CWE-250  & HIGH     & Security \\
+\texttt{missing\_encryption}            & CWE-312  & HIGH     & Security \\
+\texttt{unencrypted\_database}          & CWE-312  & HIGH     & Security \\
+\texttt{insecure\_tls}                  & CWE-326  & HIGH     & Security \\
+\texttt{missing\_network\_policy}       & CWE-923  & MEDIUM   & Security \\
+\texttt{public\_access\_block\_disabled}& CWE-732  & HIGH     & Security \\
+\texttt{missing\_resource\_limits}      & CWE-400  & MEDIUM   & Config Data \\
+\texttt{logging\_disabled}              & CWE-778  & MEDIUM   & Config Data \\
+\texttt{versioning\_disabled}           & CWE-693  & LOW      & Config Data \\
+\texttt{unpinned\_base\_image}          & CWE-1357 & MEDIUM   & Dependency \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================
+\section{Example Records}
+% ============================================================
+
+This section shows one representative before/after example for each IaC technology covered.
+
+\subsection{Terraform --- Hardcoded Credentials (CWE-798, CRITICAL)}
+
+\textbf{Before (insecure):}
+\begin{lstlisting}[style=iac]
+provider "aws" {
+  region     = "us-east-1"
+  access_key = "AKIAIOSFODNN7EXAMPLE"
+  secret_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+}
+\end{lstlisting}
+
+\textbf{After (fixed):}
+\begin{lstlisting}[style=iac]
+provider "aws" {
+  region = "us-east-1"
+  # Credentials loaded from environment or IAM instance profile
+}
+\end{lstlisting}
+
+\subsection{Terraform --- Overly Permissive Security Group (CWE-732, HIGH)}
+
+\textbf{Before (insecure):}
+\begin{lstlisting}[style=iac]
+resource "aws_security_group_rule" "allow_all" {
+  type        = "ingress"
+  from_port   = 0
+  to_port     = 65535
+  protocol    = "tcp"
+  cidr_blocks = ["0.0.0.0/0"]
+}
+\end{lstlisting}
+
+\textbf{After (fixed):}
+\begin{lstlisting}[style=iac]
+resource "aws_security_group_rule" "allow_https" {
+  type        = "ingress"
+  from_port   = 443
+  to_port     = 443
+  protocol    = "tcp"
+  cidr_blocks = ["10.0.0.0/8"]
+}
+\end{lstlisting}
+
+\subsection{Kubernetes --- Privileged Container (CWE-250, HIGH)}
+
+\textbf{Before (insecure):}
+\begin{lstlisting}[style=iac]
+containers:
+  - name: app
+    image: myapp:1.0
+    securityContext:
+      privileged: true
+      allowPrivilegeEscalation: true
+      runAsUser: 0
+\end{lstlisting}
+
+\textbf{After (fixed):}
+\begin{lstlisting}[style=iac]
+containers:
+  - name: app
+    image: myapp:1.0
+    securityContext:
+      privileged: false
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      readOnlyRootFilesystem: true
+\end{lstlisting}
+
+\subsection{Dockerfile --- Root User and Unpinned Base Image (CWE-250, CWE-1357)}
+
+\textbf{Before (insecure):}
+\begin{lstlisting}[style=iac]
+FROM ubuntu:latest
+RUN apt-get update && apt-get install -y python3
+ENV DB_PASSWORD=supersecret123
+USER root
+COPY app.py /app/app.py
+CMD ["python3", "/app/app.py"]
+\end{lstlisting}
+
+\textbf{After (fixed):}
+\begin{lstlisting}[style=iac]
+FROM ubuntu:22.04
+RUN apt-get update && apt-get install -y python3 \
+    && useradd -r -s /bin/false appuser
+USER appuser
+COPY app.py /app/app.py
+CMD ["python3", "/app/app.py"]
+\end{lstlisting}
+
+\subsection{Ansible --- Hardcoded Password (CWE-259, HIGH)}
+
+\textbf{Before (insecure):}
+\begin{lstlisting}[style=iac]
+- name: Configure database
+  hosts: db_servers
+  vars:
+    db_password: "mysecretpassword"
+  tasks:
+    - name: Set database password
+      mysql_user:
+        name: admin
+        password: "{{ db_password }}"
+\end{lstlisting}
+
+\textbf{After (fixed):}
+\begin{lstlisting}[style=iac]
+- name: Configure database
+  hosts: db_servers
+  tasks:
+    - name: Set database password
+      mysql_user:
+        name: admin
+        password: "{{ vault_db_password }}"
+      no_log: true
+\end{lstlisting}
+
+\subsection{CloudFormation --- Public S3 Bucket (CWE-732, HIGH)}
+
+\textbf{Before (insecure):}
+\begin{lstlisting}[style=iac]
+MyBucket:
+  Type: AWS::S3::Bucket
+  Properties:
+    AccessControl: PublicRead
+    BucketName: my-public-bucket
+\end{lstlisting}
+
+\textbf{After (fixed):}
+\begin{lstlisting}[style=iac]
+MyBucket:
+  Type: AWS::S3::Bucket
+  Properties:
+    BucketName: my-private-bucket
+    PublicAccessBlockConfiguration:
+      BlockPublicAcls: true
+      BlockPublicPolicy: true
+      IgnorePublicAcls: true
+      RestrictPublicBuckets: true
+\end{lstlisting}
+
+% ============================================================
+\section{Limitations}
+% ============================================================
+
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Smell annotation completeness}: smell types are detected by regex pattern matching on the diff. If a fix addresses a smell not covered by any pattern, the \texttt{smells} array will be empty even though the record is a genuine security fix. Approximately 20--30\% of GitHub commit records have empty smell annotations.
+
+  \item \textbf{GitHub bias}: the search API favours popular, English-language repositories. Small or private IaC projects are not represented.
+
+  \item \textbf{Before content reconstruction}: for a small number of commits, the before version could not be retrieved from the API (repository deleted, access restricted). In these cases the before content is reconstructed heuristically from the diff patch.
+
+  \item \textbf{No runtime validation}: the fixed versions (\texttt{code\_after}) are not validated by running Checkov or another scanner. Some fixes may be partial or context-dependent.
+
+  \item \textbf{Tool imbalance}: Terraform and Kubernetes are over-represented relative to Ansible, Docker, and CloudFormation, reflecting their higher adoption and commit activity on GitHub.
+\end{itemize}
+
+% ============================================================
+\section{Conclusion}
+% ============================================================
+
+A large-scale IaC security dataset of 33,667 labelled records was successfully constructed through automated collection from GitHub and from the test resources of Checkov and KICS. The dataset covers five IaC technologies, 18 security smell types, and provides before/after fix pairs for 97.9\% of records. It is intended to serve three roles within the thesis framework: as the knowledge base for the RAG retriever, as training data for the fix generator, and as a benchmark for evaluating the full pipeline on the test split.
+
+\medskip
+\noindent\textbf{Data availability.} Sample records and full documentation are publicly available at:\\
+\url{https://github.com/Ahmedouyahya/iac-security-dataset}
+
+\end{document}
