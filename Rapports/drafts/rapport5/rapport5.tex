@@ -36,6 +36,9 @@
 \usepackage{amssymb}
 \usepackage{mathtools}
 \usepackage{bm}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{positioning, fit, calc, arrows.meta}
 \DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
 \DeclarePairedDelimiter{\norm}{\lVert}{\rVert}
 
@@ -411,6 +414,46 @@ Gaussian \(A_{ij} \sim \mathcal{N}(0,\sigma^{2})\) and \(B\) from zero, so
 that \(\Delta W = 0\) at step~0 and the adapted model starts identical to
 the pretrained one.
 
+Figure~\ref{fig:lora-schematic} summarises Eq.~\eqref{eq:lora-forward}
+graphically: the \(d \times k\) frozen matrix is kept untouched while the
+gradient signal flows only through the two thin matrices \(A\) and \(B\).
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[
+      font=\small,
+      frozen/.style ={draw=black!70, fill=black!8,  minimum width=2.4cm, minimum height=2.4cm},
+      train/.style  ={draw=black!70, fill=black!20, minimum height=2.4cm},
+      thin/.style   ={draw=black!70, fill=black!20, minimum width=2.4cm},
+      arrow/.style  ={-{Latex[length=2mm]}, thick, black!70}
+    ]
+    \node[frozen] (W0) {$W_0$};
+    \node[above=1pt of W0, font=\footnotesize\itshape] {frozen};
+
+    \node[right=1.9cm of W0, train, minimum width=0.6cm] (B) {$B$};
+    \node[right=0.05cm of B, thin, minimum height=0.6cm]  (A) {$A$};
+    \node[above=1pt of B, font=\footnotesize\itshape] {trainable};
+
+    \node[draw=black!70, fill=black!4, minimum width=2.4cm, minimum height=2.4cm,
+          right=3.6cm of A] (W) {$W_0 + \tfrac{\alpha}{r} B A$};
+
+    \draw[arrow] (W0.east)  -- ++(0.4,0);
+    \node at ($(W0.east)!0.5!(B.west)$) {$+$};
+    \draw[arrow] (A.east) -- (W.west);
+
+    \node[below=5pt of W0, font=\footnotesize] {$d \times k$};
+    \node[below=5pt of B,  font=\footnotesize] {$d \times r$};
+    \node[below=5pt of A,  font=\footnotesize] {$r \times k$};
+    \node[below=5pt of W,  font=\footnotesize] {effective};
+  \end{tikzpicture}
+  \caption[LoRA decomposition]{Schematic of the LoRA decomposition
+           (Eq.~\eqref{eq:lora-forward}). The large frozen matrix \(W_0\)
+           contributes the pretrained behaviour; the two small matrices
+           \(A\) and \(B\) carry the entire update
+           \(\Delta W = (\alpha/r)\,BA\).}
+  \label{fig:lora-schematic}
+\end{figure}
+
 \paragraph{Trainable parameter count.} Let \(\mathcal{L}\) be the set of
 adapted layers and \((d_\ell, k_\ell)\) the shape of \(W_0\) at layer
 \(\ell\). Only \(A\) and \(B\) receive gradients, so
@@ -442,6 +485,47 @@ i.e.\ \(\approx 9.3\)~M trainable parameters, which is a fraction
 base model. The resulting adapter file is 25~MB on disk instead of
 \(\approx 5\)~GB for the full fp16 model --- a \(\sim\!200\!\times\)
 reduction that is the property exploited by \gls{qlora}.
+
+Figure~\ref{fig:lora-count} visualises this reduction on a logarithmic
+axis; the three orders of magnitude between the full-model bar and the
+\gls{lora} bar illustrate concretely why only the attention projections
+are attached with adapters in our configuration.
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[
+      xbar,
+      width=11cm, height=3.6cm,
+      bar width=10pt,
+      xmode=log,
+      log basis x={10},
+      xmin=1e6, xmax=1e10,
+      xlabel={Parameters (log scale)},
+      symbolic y coords={lora, full},
+      ytick=data,
+      yticklabels={LoRA adapter, Full model},
+      nodes near coords,
+      nodes near coords style={font=\footnotesize, anchor=west},
+      nodes near coords align={horizontal},
+      enlarge y limits=0.6,
+      axis line style={black!70},
+      tick label style={font=\footnotesize, black!70},
+      label style={font=\footnotesize, black!70},
+      every node near coord/.append style={black!70},
+      grid=major, grid style={dashed, black!15},
+    ]
+      \addplot+[draw=black!70, fill=black!25, mark=none]
+        coordinates {(2.6e9,full) (9.27e6,lora)};
+    \end{axis}
+  \end{tikzpicture}
+  \caption[LoRA trainable fraction]{Trainable-parameter count for
+           Gemma-2-2B with and without \gls{lora}
+           (Eq.~\eqref{eq:lora-count-gemma}). The \gls{lora} bar is
+           \(\sim 280\times\) shorter than the full-model bar on the
+           log axis.}
+  \label{fig:lora-count}
+\end{figure}
 
 \section{Quantised LoRA (QLoRA)}
 \label{sec:qlora}
@@ -500,6 +584,44 @@ double-quantised scale overhead ($\sim 0.5$~bits/parameter), hence the
   \end{tabular}
 \end{table}
 
+The same three numbers are plotted in Figure~\ref{fig:mem-budget}
+against the 16~GB T4 \gls{vram} ceiling: fp32 does not fit at all,
+fp16 leaves barely any room for activations, and only \gls{nf4} leaves
+enough headroom for the \(n=2{,}048\) attention buffers discussed in
+Section~\ref{sec:attn-memory}.
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[
+      ybar,
+      width=9cm, height=4.4cm,
+      bar width=20pt,
+      ymin=0, ymax=12,
+      ylabel={Base-weight memory (GB)},
+      symbolic x coords={fp32, fp16, NF4},
+      xtick=data,
+      nodes near coords,
+      nodes near coords style={font=\footnotesize, black!70},
+      axis line style={black!70},
+      tick label style={font=\footnotesize, black!70},
+      label style={font=\footnotesize, black!70},
+      grid=major, grid style={dashed, black!15},
+    ]
+      \addplot+[draw=black!70, fill=black!25, mark=none]
+        coordinates {(fp32,10.4) (fp16,5.2) (NF4,1.6)};
+      \draw[dashed, black!60]
+        (axis cs:fp32,16) -- (axis cs:NF4,16)
+        node[pos=0.05, above, font=\footnotesize\itshape] {T4 VRAM ceiling = 16 GB};
+    \end{axis}
+  \end{tikzpicture}
+  \caption[Base-weight memory]{Base-weight memory cost for
+           \(P \approx 2.6\)~G parameters under three precisions,
+           computed from Eq.~\eqref{eq:mem-bytes}. Only \gls{nf4}
+           leaves enough headroom for activations on a 16~GB T4.}
+  \label{fig:mem-budget}
+\end{figure}
+
 Combining Table~\ref{tab:vram-budget} with the adapter cost of
 Eq.~\eqref{eq:lora-count-gemma} (\(\approx 9.3\)~M parameters in fp16,
 \(\approx 18\)~MB) and 8-bit AdamW states
@@ -533,7 +655,39 @@ which is why doubling the context to \(n=4{,}096\) quadruples this term
 and quickly exhausts the \(\sim\!14\)~GB left on a T4 after
 Table~\ref{tab:vram-budget}. This quadratic scaling is the immediate
 reason for capping the combined prompt+completion length during data
-preparation (Section~\ref{sec:filter}).
+preparation (Section~\ref{sec:filter}). Figure~\ref{fig:attn-scaling}
+plots Eq.~\eqref{eq:attn-mem} across the relevant context range.
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=10cm, height=4.6cm,
+      xlabel={Sequence length $n$ (tokens)},
+      ylabel={$M_{\mathrm{attn}}$ per layer (MB)},
+      xmin=0, xmax=8500, ymin=0,
+      xtick={512, 1024, 2048, 4096, 8192},
+      xticklabels={512, 1024, 2048, 4096, 8192},
+      axis line style={black!70},
+      tick label style={font=\footnotesize, black!70},
+      label style={font=\footnotesize, black!70},
+      grid=major, grid style={dashed, black!15},
+      samples=80, domain=0:8192,
+    ]
+      \addplot[black!70, thick, smooth]
+        { 2 * 8 * x * x / 1048576 };
+      \addplot[only marks, mark=*, mark size=1.5pt, black!80]
+        coordinates {(2048, 64)};
+      \node[font=\footnotesize, anchor=south] at (axis cs:2048, 64)
+        {$n{=}2048 \Rightarrow 64\,\text{MB}$};
+    \end{axis}
+  \end{tikzpicture}
+  \caption[Attention memory scaling]{Per-layer attention-logits memory
+           (Eq.~\eqref{eq:attn-mem}) for Gemma-2-2B
+           ($H=8$, $B=1$, fp16). The quadratic growth in $n$ is the
+           concrete reason we cap prompts at $n=2{,}048$ tokens.}
+  \label{fig:attn-scaling}
+\end{figure}
 
 \section{Supervised Fine-Tuning for Code Repair}
 \label{sec:sft}
@@ -1122,21 +1276,36 @@ model's output relative to the declared smell.
   \caption{Qualitative behaviour on three held-out test samples.}
   \label{tab:qualitative}
   \footnotesize
-  \begin{tabular}{p{0.5cm}p{2.4cm}p{4.2cm}p{4.5cm}}
+  \setlength{\tabcolsep}{6pt}
+  \renewcommand{\arraystretch}{1.25}
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.4cm}
+                    >{\raggedright\arraybackslash}p{3.0cm}
+                    >{\raggedright\arraybackslash}p{4.4cm}
+                    >{\raggedright\arraybackslash}p{4.6cm}@{}}
     \toprule
     \textbf{\#} & \textbf{Declared smells} & \textbf{Human fix (ground truth)} & \textbf{Fine-tuned model output} \\
     \midrule
-    1 & \texttt{apt\_no\_install\_recommends}, \texttt{unpinned\_base\_image} (Docker)
-      & Version bump \texttt{ATMOS\_VERSION 1.210.0 $\to$ 1.214.0} --- does not address the declared smell
-      & Adds \texttt{--allow-downgrades} on apt, introduces \texttt{addgroup}/\texttt{adduser} and \texttt{USER appuser} --- an independent, sensible hardening \\
-    \addlinespace[3pt]
+    1 & \texttt{apt\_no\_install\_\allowbreak recommends},
+        \texttt{unpinned\_\allowbreak base\_image} (Docker)
+      & Version bump
+        \texttt{ATMOS\_VERSION 1.210.0 $\to$ 1.214.0} --- does not address
+        the declared smell
+      & Adds \texttt{--allow-downgrades} on apt, introduces
+        \texttt{addgroup}/\texttt{adduser} and \texttt{USER appuser} ---
+        an independent, sensible hardening \\
+    \addlinespace[4pt]
     2 & \texttt{uri\_credentials} (Terraform)
-      & Changes \texttt{recovery\_window\_in\_days 0 $\to$ 7} --- unrelated to URI credentials
-      & Regenerates the block with additional IRSA / IAM policy scaffolding, keeps \texttt{0} in place, does not target URI credentials \\
-    \addlinespace[3pt]
-    3 & \texttt{unpinned\_base\_image} (Docker)
-      & Pins a build-stage Go image by \texttt{sha256:...} digest (a real pin)
-      & Does not pin any base image; performs unrelated hardening (\texttt{apt-get upgrade}, LABELS, no-install-recommends) \\
+      & Changes \texttt{recovery\_window\_in\_days 0 $\to$ 7} ---
+        unrelated to URI credentials
+      & Regenerates the block with additional IRSA / IAM policy
+        scaffolding, keeps \texttt{0} in place, does not target URI
+        credentials \\
+    \addlinespace[4pt]
+    3 & \texttt{unpinned\_\allowbreak base\_image} (Docker)
+      & Pins a build-stage Go image by \texttt{sha256:...} digest
+        (a real pin)
+      & Does not pin any base image; performs unrelated hardening
+        (\texttt{apt-get upgrade}, LABELS, no-install-recommends) \\
     \bottomrule
   \end{tabular}
 \end{table}

@@ -117,7 +117,7 @@ Two distinct datasets are used, with different purposes:
 Implementation phase. The theoretical design is complete and documented
 in the progress reports (`Rapports/drafts/`). A first, preliminary
 QLoRA fine-tuning experiment is documented in
-`Rapports/drafts/rapport7/` — see that report for the exact scope,
+`Rapports/drafts/rapport5/` — see that report for the exact scope,
 results and limitations of that experiment.
 
 ## 8. Key References
