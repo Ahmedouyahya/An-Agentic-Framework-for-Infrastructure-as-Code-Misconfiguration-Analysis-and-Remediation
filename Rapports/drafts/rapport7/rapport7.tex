@@ -34,6 +34,10 @@
 % ---- Math ----
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{bm}
+\DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
+\DeclarePairedDelimiter{\norm}{\lVert}{\rVert}
 
 % ---- Graphics & Tables ----
 \usepackage{graphicx}
@@ -381,56 +385,210 @@ steps required to plug the fine-tuned model into the full agentic pipeline.
 % ============================================================
 
 \section{Low-Rank Adaptation (LoRA)}
+\label{sec:lora}
 
 \gls{lora}~(Hu~\emph{et al.}, 2021)\footnote{E.~Hu \emph{et al.},
 \emph{LoRA: Low-Rank Adaptation of Large Language Models}, arXiv:2106.09685.}
-is a parameter-efficient fine-tuning method
-that freezes the original weights \(W_0 \in \mathbb{R}^{d \times k}\) of a
-pretrained model and learns a low-rank update
-\(\Delta W = B A\), with \(B \in \mathbb{R}^{d \times r}\) and
-\(A \in \mathbb{R}^{r \times k}\) for a small rank \(r \ll \min(d,k)\).
-At inference time the effective weight becomes \(W = W_0 + \Delta W\).
+is a parameter-efficient fine-tuning method. Given a frozen weight matrix
+\(W_0 \in \mathbb{R}^{d \times k}\) of a pretrained layer, \gls{lora}
+augments it with a learned low-rank update \(\Delta W = B A\) where
+\begin{equation}
+  B \in \mathbb{R}^{d \times r}, \qquad
+  A \in \mathbb{R}^{r \times k}, \qquad
+  r \ll \min(d, k).
+  \label{eq:lora-factors}
+\end{equation}
+The forward pass of an adapted layer, applied to an input
+\(\bm{x} \in \mathbb{R}^{k}\), is then
+\begin{equation}
+  \bm{h} \;=\; W_0\,\bm{x} \;+\; \Delta W\,\bm{x}
+          \;=\; W_0\,\bm{x} \;+\; \frac{\alpha}{r}\,B\,A\,\bm{x},
+  \label{eq:lora-forward}
+\end{equation}
+where \(\alpha\) is a fixed scaling factor that decouples the learning rate
+from the rank. Following standard practice, \(A\) is initialised from a
+Gaussian \(A_{ij} \sim \mathcal{N}(0,\sigma^{2})\) and \(B\) from zero, so
+that \(\Delta W = 0\) at step~0 and the adapted model starts identical to
+the pretrained one.
 
-Only \(A\) and \(B\) are updated during training, which reduces the number
-of trainable parameters by several orders of magnitude. For Gemma-2-2B
-with \(r=16\) applied to all attention projection matrices, the trainable
-parameter count is approximately 9.3~million out of 2.6~billion --- a
-trainable fraction of 0.35~\%. The resulting adapter file is 25~MB instead
-of the 5~GB of the full model.
+\paragraph{Trainable parameter count.} Let \(\mathcal{L}\) be the set of
+adapted layers and \((d_\ell, k_\ell)\) the shape of \(W_0\) at layer
+\(\ell\). Only \(A\) and \(B\) receive gradients, so
+\begin{equation}
+  \abs{\theta_{\mathrm{LoRA}}}
+    \;=\; r \sum_{\ell \in \mathcal{L}} \bigl(d_\ell + k_\ell\bigr)
+    \;\ll\; \sum_{\ell \in \mathcal{L}} d_\ell\,k_\ell
+    \;=\; \abs{\theta_{\mathrm{full}}}.
+  \label{eq:lora-count}
+\end{equation}
+Eq.~\eqref{eq:lora-count} is what makes \gls{lora} attractive: the number
+of trainable parameters grows linearly in \(r\), not quadratically in the
+hidden dimension.
+
+\paragraph{Numerical instance (Gemma-2-2B).} Our run adapts the four
+attention projections of every transformer block. With a hidden size
+\(d_{\mathrm{model}}=2304\), an attention projection size
+\(d_{\mathrm{attn}}\), and \(L=26\) blocks, applying \gls{lora} at rank
+\(r=16\) to \(\{W_{q}, W_{k}, W_{v}, W_{o}\}\) yields
+\begin{equation}
+  \abs{\theta_{\mathrm{LoRA}}}
+    \;\approx\; r \cdot L \cdot \sum_{W \in \{q,k,v,o\}}
+      \bigl(d_{\mathrm{in}}(W) + d_{\mathrm{out}}(W)\bigr)
+    \;=\; 9{,}273{,}344,
+  \label{eq:lora-count-gemma}
+\end{equation}
+i.e.\ \(\approx 9.3\)~M trainable parameters, which is a fraction
+\(9.3 \times 10^{6} / 2.6 \times 10^{9} \approx 0.35\,\%\) of the full
+base model. The resulting adapter file is 25~MB on disk instead of
+\(\approx 5\)~GB for the full fp16 model --- a \(\sim\!200\!\times\)
+reduction that is the property exploited by \gls{qlora}.
 
 \section{Quantised LoRA (QLoRA)}
+\label{sec:qlora}
 
 \gls{qlora}~(Dettmers~\emph{et al.}, 2023)\footnote{T.~Dettmers \emph{et al.},
 \emph{QLoRA: Efficient Finetuning of Quantized LLMs}, arXiv:2305.14314.}
-combines \gls{lora} with 4-bit
-quantisation of the \emph{base} weights. Forward passes decompress each
-weight tile on demand, keep activations in 16-bit precision for numerical
-stability, and route gradients exclusively through the low-rank adapter.
-The most common quantisation scheme is \gls{nf4} with double-quantisation
-of the scaling constants.
+combines \gls{lora} with 4-bit quantisation of the \emph{base} weights.
+Conceptually, each base weight tensor \(W_0\) is replaced by its
+\gls{nf4} quantised representation
+\begin{equation}
+  Q_{W_0} \;=\; \operatorname{quant}_{\mathrm{NF4}}(W_0; s),
+  \qquad
+  \widetilde{W}_0 \;=\; \operatorname{dequant}_{\mathrm{NF4}}(Q_{W_0}; s),
+  \label{eq:nf4}
+\end{equation}
+where \(s\) is a per-block scaling constant and
+\(\widetilde{W}_0 \approx W_0\). The adapted forward pass of
+Eq.~\eqref{eq:lora-forward} is therefore evaluated with the dequantised
+weights while the low-rank update stays in \(16\)-bit precision:
+\begin{equation}
+  \bm{h} \;=\; \widetilde{W}_0\,\bm{x} \;+\; \frac{\alpha}{r}\,B\,A\,\bm{x}.
+  \label{eq:qlora-forward}
+\end{equation}
+Gradients flow exclusively through \((A, B)\); the quantised
+\(Q_{W_0}\) is never updated. Double quantisation compresses the scaling
+constants themselves, and \gls{nf4} uses a bit-allocation optimised for
+the (approximately normal) distribution of pretrained weights. These
+details are inherited from Dettmers~\emph{et al.} (2023) and
+implemented by \texttt{bitsandbytes}.
 
-The memory footprint of a 2-billion-parameter model collapses from
-\(\approx\)~10~GB (fp32) or 5~GB (fp16) to roughly 1.6~GB with \gls{nf4}.
-Combined with gradient checkpointing, this makes it feasible to fine-tune
-such a model on a single 16~GB T4, which is precisely the environment
-available on Kaggle's free tier.
+\paragraph{Memory footprint.} Storing a parameter tensor of size \(P\) in
+a representation that uses \(b\) bits per entry costs
+\begin{equation}
+  M(P, b) \;=\; \frac{b}{8}\,P \quad \text{bytes}.
+  \label{eq:mem-bytes}
+\end{equation}
+For a \(P \approx 2.6 \times 10^{9}\) model, Eq.~\eqref{eq:mem-bytes}
+gives the base-weight memory cost shown in
+Table~\ref{tab:vram-budget}. The \gls{nf4} row includes the
+double-quantised scale overhead ($\sim 0.5$~bits/parameter), hence the
+\(\approx 1.6\)~GB value rather than the naive \(1.3\)~GB.
+
+\begin{table}[H]
+  \centering
+  \caption{Base-weight memory for Gemma-2-2B under different precisions,
+           computed from Eq.~\eqref{eq:mem-bytes}.}
+  \label{tab:vram-budget}
+  \begin{tabular}{@{}lccr@{}}
+    \toprule
+    \textbf{Representation} & \textbf{Bits/param} & \textbf{Formula} & \textbf{Memory} \\
+    \midrule
+    fp32                       & 32   & \(4 P\)           & \(\approx 10.4\)~GB \\
+    fp16 / bf16                & 16   & \(2 P\)           & \(\approx 5.2\)~GB  \\
+    \gls{nf4} (w/ double-quant) & 4{+}0.5 & \((b/8)\,P\) & \(\approx 1.6\)~GB  \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Combining Table~\ref{tab:vram-budget} with the adapter cost of
+Eq.~\eqref{eq:lora-count-gemma} (\(\approx 9.3\)~M parameters in fp16,
+\(\approx 18\)~MB) and 8-bit AdamW states
+(Dettmers, 2022)\footnote{T.~Dettmers, \emph{8-bit Optimizers via
+Block-wise Quantization}, ICLR 2022.} for those same parameters, the
+static part of the \gls{vram} budget stays well below 2~GB. The bulk of
+the remaining 14~GB on a T4 is therefore available for activations
+(which grow with the sequence length, see
+Section~\ref{sec:attn-memory}) and for gradient-checkpointing
+recomputation buffers. This is precisely what allows \gls{qlora} to
+run on Kaggle's free T4 tier at sequence length 2{,}048.
+
+\section{Attention Memory and the Context-Length Trade-off}
+\label{sec:attn-memory}
+
+The activation cost is dominated by self-attention. For one attention
+layer processing a batch of \(B\) sequences of length \(n\) with \(H\)
+heads, the attention logits \(Q K^{\top}\) alone occupy
+\begin{equation}
+  M_{\mathrm{attn}}(B, H, n, b)
+    \;=\; \frac{b}{8}\;B\,H\,n^{2}\quad\text{bytes},
+  \label{eq:attn-mem}
+\end{equation}
+so the memory grows \emph{quadratically} in \(n\). Over all \(L\)
+transformer blocks the dominant term scales as
+\(\mathcal{O}\bigl(L\,B\,H\,n^{2}\bigr)\). In our configuration
+(\(L=26\), \(H=8\), \(B=1\), fp16 compute, \(n=2{,}048\)), the naive
+per-layer logits cost is already
+\(M_{\mathrm{attn}} = 2 \cdot 1 \cdot 8 \cdot 2048^{2} \approx 67\)~MB,
+which is why doubling the context to \(n=4{,}096\) quadruples this term
+and quickly exhausts the \(\sim\!14\)~GB left on a T4 after
+Table~\ref{tab:vram-budget}. This quadratic scaling is the immediate
+reason for capping the combined prompt+completion length during data
+preparation (Section~\ref{sec:filter}).
 
 \section{Supervised Fine-Tuning for Code Repair}
+\label{sec:sft}
 
 Our task is a form of \gls{sft}~(Ouyang~\emph{et al.}, 2022)\footnote{L.~Ouyang
 \emph{et al.}, \emph{Training Language Models to Follow Instructions with
-Human Feedback}, NeurIPS 2022.} where the
-model receives an instruction prompt and produces a target completion.
-The instruction describes the detected security smells; the completion is
-the human-written fixed version of the script. The training objective is
-the usual causal-language-modelling loss computed only on the completion
-tokens when a chat template is applied.
+Human Feedback}, NeurIPS 2022.} where the model receives an instruction
+prompt and produces a target completion. The instruction describes the
+detected security smells; the completion is the human-written fixed
+version of the script.
 
-Unlike classical code generation, our setting is closer to
-\emph{code-to-code translation}: the model sees broken code and must emit
-valid code that preserves functional equivalence while removing the
-security smell. This narrow, constrained task is well suited to
-parameter-efficient fine-tuning with limited data.
+\paragraph{Training objective.} A training example is a pair
+\((\bm{x}, \bm{y})\) with \(\bm{x} = (x_{1},\dots,x_{m})\) the tokenised
+prompt and \(\bm{y} = (y_{1},\dots,y_{n})\) the tokenised target
+completion. Writing \(\theta\) for the learnable parameters
+(the \gls{lora} factors \(A\) and \(B\) of Eq.~\eqref{eq:lora-factors};
+recall that \(\widetilde{W}_0\) is frozen), the causal
+language-modelling loss used in our run is
+\begin{equation}
+  \mathcal{L}(\theta)
+    \;=\; -\sum_{t=1}^{n}
+      m_{t}\,\log p_\theta\!\bigl(y_{t} \mid \bm{x},\, y_{<t}\bigr),
+  \label{eq:sft-loss}
+\end{equation}
+where \(y_{<t} = (y_{1},\dots,y_{t-1})\) and \(m_{t} \in \{0,1\}\) is a
+\emph{completion-only} mask that equals \(1\) on target tokens and \(0\)
+on prompt tokens. This mask is important: it prevents the model from
+being rewarded for reproducing the insecure \texttt{code\_before} that
+sits inside the prompt, and it concentrates the gradient signal on the
+corrective edit.
+
+\paragraph{Gradient update.} Because gradients flow only through the
+\gls{lora} adapter (Eq.~\eqref{eq:qlora-forward}), at each optimisation
+step \(k\) only \((A, B)\) are touched:
+\begin{equation}
+  (A_{k+1}, B_{k+1})
+    \;=\; (A_{k}, B_{k})
+        - \eta\,\nabla_{(A,B)}\,
+          \widehat{\mathcal{L}}(\theta_{k}),
+  \label{eq:sft-step}
+\end{equation}
+with \(\eta\) the learning rate and
+\(\widehat{\mathcal{L}}\) the mini-batch estimate of
+Eq.~\eqref{eq:sft-loss} averaged over
+\(B_{\mathrm{eff}} = B_{\mathrm{micro}} \times G\) examples, where
+\(B_{\mathrm{micro}}\) is the per-device micro-batch size and
+\(G\) the number of gradient-accumulation steps. In our configuration
+\(B_{\mathrm{micro}} = 1\) and \(G = 8\), giving an effective batch
+size \(B_{\mathrm{eff}} = 8\).
+
+\paragraph{Framing.} Unlike classical code generation, our setting is
+closer to \emph{code-to-code translation}: the model sees broken code
+and must emit valid code that preserves functional equivalence while
+removing the security smell. This narrow, constrained task is well
+suited to parameter-efficient fine-tuning with limited data.
 
 % ============================================================
 \chapter{Dataset}
@@ -526,6 +684,7 @@ because commits that fix hard-coded secrets are often held in private
 repositories or heavily redacted.
 
 \section{Filtering Pipeline for Supervised Fine-Tuning}
+\label{sec:filter}
 
 Raw records are not immediately usable for training. The preparation
 script \texttt{01\_prepare\_dataset.py} applies six filters in sequence
@@ -552,9 +711,10 @@ script \texttt{01\_prepare\_dataset.py} applies six filters in sequence
 \end{table}
 
 The combined length cap is a direct consequence of the \gls{vram} budget:
-at a maximum sequence length of 2{,}048 tokens, the attention memory grows
-as \(O(n^2)\) and longer contexts are unlikely to fit alongside the model
-state on a T4. The scanner-validated filter is the most aggressive (it
+per Eq.~\eqref{eq:attn-mem}, the attention memory grows as
+\(\mathcal{O}(n^{2})\) in the sequence length, so at
+\(n = 2{,}048\) tokens the activations fit on a T4 alongside the
+model state but a longer context would not. The scanner-validated filter is the most aggressive (it
 discards roughly two thirds of fix pairs); it ensures that the
 \texttt{code\_before} is flagged as vulnerable by at least one static
 analyser, rather than being selected only from keywords in the commit
@@ -717,10 +877,12 @@ The target completion is the \texttt{code\_after} field.
 
 \section{Training Objective}
 
-The loss is the standard causal language-modelling cross-entropy,
-computed token-by-token over the model turn (the fixed code). Tokens
-belonging to the user turn are masked from the loss so the model is
-trained to \emph{produce} the fix, not to reproduce the prompt.
+We use the \gls{sft} loss introduced in Eq.~\eqref{eq:sft-loss}: a
+token-level causal cross-entropy computed only over the model turn (the
+fixed code), with \(m_{t} = 0\) on every token that belongs to the user
+turn. Parameters are updated by the rule of Eq.~\eqref{eq:sft-step} with
+\(\eta = 2 \times 10^{-4}\) and effective batch size
+\(B_{\mathrm{eff}} = 8\).
 
 \section{Software Stack}
 
