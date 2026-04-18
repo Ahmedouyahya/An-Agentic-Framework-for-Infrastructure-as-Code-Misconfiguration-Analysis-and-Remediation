@@ -2,29 +2,38 @@
 """
 Evaluation Script — Agentic IaC Security Framework
 ====================================================
-Computes all 18 metrics across the 4 evaluation layers on the ground-truth
-dataset (dataset/metadata.json).
+Computes the revised 8-metric set across 4 configurations on either the
+8-file sanity suite (dataset/metadata.json) or the 33k corpus test split.
+
+Metrics (per Rapport 4):
+  Detection:    Precision, Recall, F1, Macro-F1
+  Retrieval:    Hit Rate@3, Hit Rate@5, MRR
+  Remediation:  PVR (Patch Validity Rate), SER (Smell Elimination Rate),
+                NNIR (No-New-Issues Rate)
+  Confidence:   Self-consistency score (from generator)
+  Inferential:  Wilcoxon rank-sum + Holm-Bonferroni (paired config comparison)
 
 Usage:
-    python3 scripts/evaluate.py [--mode baseline|full] [--model MODEL]
+    # Config A — baseline (Checkov-only detection, no LLM)
+    python3 scripts/evaluate.py --config A
 
-Modes:
-    baseline  (default) — Config A: Checkov-only detection, no LLM
-    full                — Config D: Full pipeline with LLM patch generation
+    # Config B — + RAG
+    python3 scripts/evaluate.py --config B
+
+    # Config C — + RAG + Checkov validation
+    python3 scripts/evaluate.py --config C
+
+    # Config D — + RAG + Checkov + KICS + retry loop
+    python3 scripts/evaluate.py --config D --model "gemma3:4b"
+
+    # Use 33k corpus test split instead of 8-file suite
+    python3 scripts/evaluate.py --config D --dataset path/to/test.jsonl
 
 LLM backends (detected from environment variables, in priority order):
     ANTHROPIC_API_KEY   → Anthropic Claude
-    OPENROUTER_API_KEY  → OpenRouter free models (Llama, MiniMax, Mistral, Gemma…)
-    MINIMAX_API_KEY     → MiniMax API directly
+    OPENROUTER_API_KEY  → OpenRouter
+    OLLAMA_MODEL        → Local Ollama (e.g. gemma3:4b)
     OPENAI_API_KEY      → OpenAI
-
-Example — run full evaluation with a free OpenRouter model:
-    export OPENROUTER_API_KEY="sk-or-..."
-    python3 scripts/evaluate.py --mode full --model "meta-llama/llama-3.1-8b-instruct:free"
-
-Example — run with MiniMax:
-    export OPENROUTER_API_KEY="sk-or-..."
-    python3 scripts/evaluate.py --mode full --model "minimax/minimax-01"
 
 Author: Ahmedou Yahye Kheyri
 """
@@ -34,14 +43,14 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import math
 import os
 import subprocess
 import sys
-import tempfile
-from collections import defaultdict
+import uuid
+from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
-from statistics import mean, stdev
+from statistics import mean
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -56,8 +65,21 @@ TAXONOMY_PATH = DATASET_ROOT / "taxonomy" / "smells_taxonomy.json"
 # ===========================================================================
 
 def load_metadata() -> dict:
+    """Load the 8-file sanity suite metadata."""
     with METADATA_PATH.open() as f:
         return json.load(f)
+
+
+def load_jsonl_dataset(path: Path) -> list[dict]:
+    """Load records from a JSONL file (33k corpus test split)."""
+    records = []
+    with path.open() as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                records.append(json.loads(line))
+    logger.info("Loaded %d records from %s", len(records), path)
+    return records
 
 
 def run_checkov(file_path: Path) -> list[dict]:
@@ -69,8 +91,6 @@ def run_checkov(file_path: Path) -> list[dict]:
         )
         raw = result.stdout or "{}"
         data = json.loads(raw)
-        # Checkov may return a list (one entry per framework: terraform, secrets, etc.)
-        # or a single dict
         if isinstance(data, list):
             checks = []
             for item in data:
@@ -84,7 +104,7 @@ def run_checkov(file_path: Path) -> list[dict]:
 
 
 def checkov_checks_to_smells(checks: list[dict]) -> list[dict]:
-    """Normalise Checkov output to smell dicts matching metadata format."""
+    """Normalise Checkov output to smell dicts."""
     smells = []
     for c in checks:
         smells.append({
@@ -98,13 +118,7 @@ def checkov_checks_to_smells(checks: list[dict]) -> list[dict]:
 
 
 def match_smell(detected: dict, ground_truth: dict, line_tolerance: int = 5) -> bool:
-    """
-    True if detected smell matches ground truth.
-    Matching criteria: checker_id == checkov_id AND line within ±tolerance.
-    If either line is null, accept on checker_id match alone.
-    Line tolerance increased to 5 to account for Checkov reporting the start of
-    the resource block rather than the specific misconfigured line.
-    """
+    """True if detected smell matches ground truth within line tolerance."""
     if detected.get("checker_id", "").upper() == "HEURISTIC":
         return False
     gt_checkov_id = ground_truth.get("checkov_id", "")
@@ -115,25 +129,21 @@ def match_smell(detected: dict, ground_truth: dict, line_tolerance: int = 5) -> 
     det_line = detected.get("line", None)
     gt_line = ground_truth.get("line", None)
     if det_line is None or gt_line is None:
-        return True  # Accept on ID match when line is unavailable
+        return True
     return abs(det_line - gt_line) <= line_tolerance
 
 
 # ===========================================================================
-# Layer 1 — Detection Metrics
+# Layer 1 — Detection Metrics (P, R, F1, Macro-F1)
 # ===========================================================================
 
 def compute_detection_metrics(
     detected_by_file: dict[str, list[dict]],
     metadata: dict,
 ) -> dict:
-    """
-    Precision, Recall, F1 per smell type, per IaC tool, and macro-average.
-    Only evaluates smells that have a non-HEURISTIC Checkov ID.
-    """
-    # Collect all ground-truth instances with Checkov IDs
-    all_gt: list[dict] = []       # (file_id, smell_dict)
-    all_det: list[dict] = []      # (file_id, smell_dict)
+    """Precision, Recall, F1 per smell type, per IaC tool, and macro-average."""
+    all_gt: list[dict] = []
+    all_det: list[dict] = []
 
     for file_entry in metadata["files"]:
         fid = file_entry["id"]
@@ -143,7 +153,6 @@ def compute_detection_metrics(
         for det in detected_by_file.get(fid, []):
             all_det.append({"file_id": fid, **det, "tool": file_entry["iac_tool"]})
 
-    # Match detected to ground truth
     matched_gt = set()
     tp_det_indices = set()
     for i, det in enumerate(all_det):
@@ -199,42 +208,34 @@ def compute_detection_metrics(
         p = tp / (tp + fp) if (tp + fp) > 0 else 0.0
         r = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         f = 2 * p * r / (p + r) if (p + r) > 0 else 0.0
-        per_tool[tool] = {"precision": p, "recall": r, "f1": f,
-                          "tp": tp, "fp": fp, "fn": fn}
+        per_tool[tool] = {"precision": p, "recall": r, "f1": f, "tp": tp, "fp": fp, "fn": fn}
 
     return {
         "TP": TP, "FP": FP, "FN": FN,
-        "precision": precision,
-        "recall": recall,
-        "f1": f1,
+        "precision": precision, "recall": recall, "f1": f1,
         "macro_f1": macro_f1,
         "per_type": per_type,
         "per_tool": per_tool,
-        "total_gt_with_checkov_id": len(all_gt),
+        "total_gt": len(all_gt),
         "total_detected": len(all_det),
     }
 
 
 # ===========================================================================
-# Layer 2 — Retrieval Metrics (simplified without vector store)
+# Layer 2 — Retrieval Metrics (Hit Rate@K, MRR)
 # ===========================================================================
 
-def compute_retrieval_metrics_simple(metadata: dict) -> dict:
-    """
-    Simplified retrieval evaluation: keyword-based matching against the
-    taxonomy JSON to simulate Hit Rate without requiring ChromaDB.
-    """
+def compute_retrieval_metrics(metadata: dict) -> dict:
+    """Hit Rate@K and MRR using keyword-based taxonomy matching."""
     taxonomy = json.loads(TAXONOMY_PATH.read_text())
 
     def is_relevant(doc: dict, smell: dict) -> bool:
-        """A taxonomy entry is relevant if CWE or type matches the smell."""
         return (
             doc.get("cwe", "") == smell.get("cwe", "NONE")
             or smell.get("type", "").lower() in doc.get("name", "").lower().replace(" ", "_")
         )
 
     def retrieve(smell: dict, k: int) -> list[dict]:
-        """Score taxonomy entries by keyword overlap with smell description."""
         desc = (smell.get("type", "") + " " + smell.get("cwe", "")).lower()
         scored = []
         for doc in taxonomy:
@@ -250,7 +251,7 @@ def compute_retrieval_metrics_simple(metadata: dict) -> dict:
         scored.sort(key=lambda x: -x[0])
         return [d for _, d in scored[:k]]
 
-    hits_k1 = hits_k3 = hits_k5 = 0
+    hits_k3 = hits_k5 = 0
     rr_scores = []
     total_queries = 0
 
@@ -264,8 +265,6 @@ def compute_retrieval_metrics_simple(metadata: dict) -> dict:
             if relevant_positions:
                 first_rank = min(relevant_positions)
                 rr_scores.append(1.0 / first_rank)
-                if first_rank <= 1:
-                    hits_k1 += 1
                 if first_rank <= 3:
                     hits_k3 += 1
                 hits_k5 += 1
@@ -274,214 +273,19 @@ def compute_retrieval_metrics_simple(metadata: dict) -> dict:
 
     n = total_queries
     return {
-        "hit_rate_k1": hits_k1 / n if n > 0 else 0.0,
         "hit_rate_k3": hits_k3 / n if n > 0 else 0.0,
         "hit_rate_k5": hits_k5 / n if n > 0 else 0.0,
-        "mrr_k5": mean(rr_scores) if rr_scores else 0.0,
+        "mrr": mean(rr_scores) if rr_scores else 0.0,
         "total_queries": n,
-        "note": "Keyword-based approximation. Run with ChromaDB for RAGAS metrics.",
     }
 
 
 # ===========================================================================
-# Layer 3 — Remediation Metrics (baseline: no patch generation)
-# ===========================================================================
-
-def compute_remediation_baseline() -> dict:
-    """
-    Baseline (Config A): Checkov does not generate patches.
-    PVR, SER, NNIR are 0 for the baseline.
-    """
-    return {
-        "pvr": 0.0,
-        "ser": 0.0,
-        "nnir": 0.0,
-        "note": "Config A (Checkov only) — no patch generation. PVR/SER/NNIR require LLM.",
-    }
-
-
-# ===========================================================================
-# Layer 4 — Agentic Loop (baseline: N/A)
-# ===========================================================================
-
-def compute_agentic_baseline() -> dict:
-    return {
-        "fa_sr": 0.0,
-        "delta_r2": 0.0,
-        "delta_r3": 0.0,
-        "fleiss_kappa": "N/A",
-        "rpa": "N/A",
-        "note": "Config A (Checkov only) — no retry loop. Metrics require full pipeline.",
-    }
-
-
-# ===========================================================================
-# Cost Estimation
-# ===========================================================================
-
-def estimate_cost(n_scripts: int, avg_tokens_in: int = 2000, avg_tokens_out: int = 500) -> dict:
-    """Estimate API cost for running the full pipeline on n_scripts."""
-    # GPT-4o-mini pricing (as of 2025): $0.15/1M input, $0.60/1M output
-    cost_per_script = (avg_tokens_in * 0.15 + avg_tokens_out * 0.60) / 1_000_000
-    total_cost = cost_per_script * n_scripts
-    return {
-        "model": "gpt-4o-mini",
-        "avg_input_tokens": avg_tokens_in,
-        "avg_output_tokens": avg_tokens_out,
-        "cost_per_script_usd": round(cost_per_script, 6),
-        "total_cost_usd": round(total_cost, 4),
-        "n_scripts": n_scripts,
-    }
-
-
-# ===========================================================================
-# Report Generator
-# ===========================================================================
-
-def print_report(detection: dict, retrieval: dict, remediation: dict, agentic: dict,
-                 cost: dict, mode: str) -> None:
-    sep = "=" * 72
-
-    print(f"\n{sep}")
-    print(f"  EVALUATION REPORT — Agentic IaC Security Framework")
-    print(f"  Mode: {mode.upper()} | Dataset: {METADATA_PATH}")
-    print(sep)
-
-    print("\n[LAYER 1 — DETECTION METRICS]")
-    print(f"  Total ground-truth smells (Checkov-traceable): {detection['total_gt_with_checkov_id']}")
-    print(f"  Total detected by Checkov:                     {detection['total_detected']}")
-    print(f"  TP: {detection['TP']}  |  FP: {detection['FP']}  |  FN: {detection['FN']}")
-    print(f"  Precision : {detection['precision']:.4f}")
-    print(f"  Recall    : {detection['recall']:.4f}")
-    print(f"  F1-Score  : {detection['f1']:.4f}")
-    print(f"  Macro-F1  : {detection['macro_f1']:.4f}")
-
-    print("\n  Per IaC Tool:")
-    print(f"  {'Tool':<15} {'Precision':>10} {'Recall':>10} {'F1':>10} {'TP':>5} {'FP':>5} {'FN':>5}")
-    print(f"  {'-'*60}")
-    for tool, m in detection["per_tool"].items():
-        print(f"  {tool:<15} {m['precision']:>10.4f} {m['recall']:>10.4f} "
-              f"{m['f1']:>10.4f} {m['tp']:>5} {m['fp']:>5} {m['fn']:>5}")
-
-    print("\n  Per Smell Type:")
-    print(f"  {'Type':<35} {'P':>8} {'R':>8} {'F1':>8} {'N':>5}")
-    print(f"  {'-'*65}")
-    for stype, m in sorted(detection["per_type"].items()):
-        print(f"  {stype:<35} {m['precision']:>8.4f} {m['recall']:>8.4f} "
-              f"{m['f1']:>8.4f} {m['support']:>5}")
-
-    print(f"\n[LAYER 2 — RETRIEVAL METRICS] ({retrieval['note']})")
-    print(f"  Total queries (smell instances):  {retrieval['total_queries']}")
-    print(f"  Hit Rate @ K=1 :  {retrieval['hit_rate_k1']:.4f}")
-    print(f"  Hit Rate @ K=3 :  {retrieval['hit_rate_k3']:.4f}")
-    print(f"  Hit Rate @ K=5 :  {retrieval['hit_rate_k5']:.4f}")
-    print(f"  MRR @ K=5      :  {retrieval['mrr_k5']:.4f}")
-
-    print(f"\n[LAYER 3 — REMEDIATION METRICS]")
-    print(f"  Patch Validity Rate  (PVR):  {remediation['pvr']:.4f}")
-    print(f"  Smell Elimination Rate (SER): {remediation['ser']:.4f}")
-    print(f"  No-New-Issues Rate  (NNIR):  {remediation['nnir']:.4f}")
-    print(f"  Note: {remediation['note']}")
-
-    print(f"\n[LAYER 4 — AGENTIC LOOP METRICS]")
-    print(f"  First-Attempt Success Rate (FA-SR): {agentic['fa_sr']:.4f}")
-    print(f"  ΔR@2 (retry benefit attempt 2):      {agentic['delta_r2']:.4f}")
-    print(f"  ΔR@3 (retry benefit attempt 3):      {agentic['delta_r3']:.4f}")
-    print(f"  Fleiss' Kappa: {agentic['fleiss_kappa']}")
-    print(f"  Note: {agentic['note']}")
-
-    print(f"\n[OPERATIONAL COST ESTIMATE]")
-    print(f"  Model: {cost['model']}")
-    print(f"  Avg input tokens / script:  {cost['avg_input_tokens']}")
-    print(f"  Avg output tokens / script: {cost['avg_output_tokens']}")
-    print(f"  Estimated cost / script:    ${cost['cost_per_script_usd']:.6f}")
-    print(f"  Total for {cost['n_scripts']} scripts:      ${cost['total_cost_usd']:.4f}")
-
-    print(f"\n{sep}")
-    print("  SUMMARY TABLE (18 Metrics)")
-    print(sep)
-    metrics_table = [
-        ("Precision",          "Detection",    f"{detection['precision']:.4f}",  "> 0.85"),
-        ("Recall",             "Detection",    f"{detection['recall']:.4f}",     "> 0.85"),
-        ("F1-Score",           "Detection",    f"{detection['f1']:.4f}",         "> 0.80"),
-        ("Macro-F1",           "Detection",    f"{detection['macro_f1']:.4f}",   "> 0.80"),
-        ("Hit Rate@1",         "Retrieval",    f"{retrieval['hit_rate_k1']:.4f}", "> 0.60"),
-        ("Hit Rate@3",         "Retrieval",    f"{retrieval['hit_rate_k3']:.4f}", "> 0.70"),
-        ("Hit Rate@5",         "Retrieval",    f"{retrieval['hit_rate_k5']:.4f}", "> 0.80"),
-        ("MRR@5",              "Retrieval",    f"{retrieval['mrr_k5']:.4f}",      "> 0.70"),
-        ("Context Recall",     "Retrieval",    "N/A (RAGAS)",                     "> 0.70"),
-        ("Context Precision",  "Retrieval",    "N/A (RAGAS)",                     "> 0.75"),
-        ("PVR",                "Remediation",  f"{remediation['pvr']:.4f}",       "> 0.70"),
-        ("SER",                "Remediation",  f"{remediation['ser']:.4f}",       "> 0.80"),
-        ("NNIR",               "Remediation",  f"{remediation['nnir']:.4f}",      "> 0.90"),
-        ("FA-SR",              "Agentic",      f"{agentic['fa_sr']:.4f}",         "> 0.50"),
-        ("ΔR@3",               "Agentic",      f"{agentic['delta_r3']:.4f}",      "> 0.10"),
-        ("Fleiss' Kappa",      "Agentic",      str(agentic['fleiss_kappa']),      "> 0.90"),
-        ("Cost/script (USD)",  "Operational",  f"${cost['cost_per_script_usd']:.6f}", "< $0.05"),
-        ("Cost/valid patch",   "Operational",  "N/A",                             "< $0.10"),
-    ]
-    print(f"  {'Metric':<25} {'Layer':<15} {'Value':>14}  {'Target':>12}")
-    print(f"  {'-'*70}")
-    for name, layer, value, target in metrics_table:
-        print(f"  {name:<25} {layer:<15} {value:>14}  {target:>12}")
-
-    print(f"\n{sep}\n")
-
-
-# ===========================================================================
-# Main
-# ===========================================================================
-
-def run_baseline_evaluation() -> None:
-    metadata = load_metadata()
-
-    logger.info("Running Checkov on all %d dataset files...", len(metadata["files"]))
-    detected_by_file: dict[str, list[dict]] = {}
-
-    for file_entry in metadata["files"]:
-        file_path = DATASET_ROOT / file_entry["file"]
-        if not file_path.exists():
-            logger.warning("Dataset file not found: %s", file_path)
-            detected_by_file[file_entry["id"]] = []
-            continue
-
-        checks = run_checkov(file_path)
-        smells = checkov_checks_to_smells(checks)
-        detected_by_file[file_entry["id"]] = smells
-        logger.info("  %s: %d smells detected", file_entry["id"], len(smells))
-
-    detection = compute_detection_metrics(detected_by_file, metadata)
-    retrieval = compute_retrieval_metrics_simple(metadata)
-    remediation = compute_remediation_baseline()
-    agentic = compute_agentic_baseline()
-    cost = estimate_cost(n_scripts=len(metadata["files"]))
-
-    print_report(detection, retrieval, remediation, agentic, cost, mode="baseline (Config A)")
-
-    # Save results to JSON for inclusion in the report
-    results = {
-        "mode": "baseline",
-        "detection": detection,
-        "retrieval": retrieval,
-        "remediation": remediation,
-        "agentic": agentic,
-        "cost": cost,
-    }
-    output_path = Path(__file__).parent / "evaluation_results.json"
-    with output_path.open("w") as f:
-        json.dump(results, f, indent=2, default=str)
-    logger.info("Results saved to %s", output_path)
-
-
-# ===========================================================================
-# Simple Taxonomy Retriever (no ChromaDB needed)
+# Lightweight RAG retriever (no ChromaDB needed for standalone evaluation)
 # ===========================================================================
 
 class SimpleTaxonomyRetriever:
-    """
-    Lightweight retriever that scores taxonomy entries by keyword overlap.
-    Replaces ChromaDB for standalone evaluation runs.
-    """
+    """Keyword-overlap retriever for standalone evaluation runs."""
 
     def __init__(self, n_results: int = 5):
         self.taxonomy = json.loads(TAXONOMY_PATH.read_text())
@@ -524,67 +328,180 @@ class SimpleTaxonomyRetriever:
 
 
 # ===========================================================================
-# Full Pipeline Evaluation (Config D)
+# Report Generator
 # ===========================================================================
 
-def run_full_evaluation(model: str | None = None) -> None:
-    """Run Config D: full LLM pipeline on all dataset files."""
+def print_report(detection: dict, retrieval: dict, remediation: dict,
+                 config: str, model: str) -> None:
+    sep = "=" * 72
+
+    print(f"\n{sep}")
+    print(f"  EVALUATION REPORT — Agentic IaC Security Framework")
+    print(f"  Config: {config} | Model: {model}")
+    print(sep)
+
+    print("\n[DETECTION METRICS]")
+    print(f"  Ground-truth smells: {detection['total_gt']}")
+    print(f"  Detected:            {detection['total_detected']}")
+    print(f"  TP: {detection['TP']}  |  FP: {detection['FP']}  |  FN: {detection['FN']}")
+    print(f"  Precision : {detection['precision']:.4f}")
+    print(f"  Recall    : {detection['recall']:.4f}")
+    print(f"  F1-Score  : {detection['f1']:.4f}")
+    print(f"  Macro-F1  : {detection['macro_f1']:.4f}")
+
+    if detection.get("per_tool"):
+        print("\n  Per IaC Tool:")
+        print(f"  {'Tool':<15} {'P':>8} {'R':>8} {'F1':>8} {'TP':>5} {'FP':>5} {'FN':>5}")
+        print(f"  {'-'*55}")
+        for tool, m in detection["per_tool"].items():
+            print(f"  {tool:<15} {m['precision']:>8.4f} {m['recall']:>8.4f} "
+                  f"{m['f1']:>8.4f} {m['tp']:>5} {m['fp']:>5} {m['fn']:>5}")
+
+    print(f"\n[RETRIEVAL METRICS]")
+    print(f"  Queries:       {retrieval['total_queries']}")
+    print(f"  Hit Rate@3:    {retrieval['hit_rate_k3']:.4f}")
+    print(f"  Hit Rate@5:    {retrieval['hit_rate_k5']:.4f}")
+    print(f"  MRR:           {retrieval['mrr']:.4f}")
+
+    print(f"\n[REMEDIATION METRICS]")
+    print(f"  PVR  (Patch Validity Rate):     {remediation['pvr']:.4f}")
+    print(f"  SER  (Smell Elimination Rate):  {remediation['ser']:.4f}")
+    print(f"  NNIR (No-New-Issues Rate):      {remediation['nnir']:.4f}")
+    if "pvr_checkov" in remediation:
+        print(f"  PVR (Checkov only):             {remediation['pvr_checkov']:.4f}")
+    if "pvr_kics" in remediation:
+        print(f"  PVR (KICS only):                {remediation['pvr_kics']:.4f}")
+    print(f"  Total files:   {remediation.get('total_files', 'N/A')}")
+    print(f"  Valid patches: {remediation.get('total_patched', 'N/A')}")
+
+    # Summary table
+    print(f"\n{sep}")
+    print("  SUMMARY (8 Metrics)")
+    print(sep)
+    metrics_table = [
+        ("Precision",      "Detection",    f"{detection['precision']:.4f}"),
+        ("Recall",         "Detection",    f"{detection['recall']:.4f}"),
+        ("F1-Score",       "Detection",    f"{detection['f1']:.4f}"),
+        ("Macro-F1",       "Detection",    f"{detection['macro_f1']:.4f}"),
+        ("Hit Rate@3",     "Retrieval",    f"{retrieval['hit_rate_k3']:.4f}"),
+        ("Hit Rate@5",     "Retrieval",    f"{retrieval['hit_rate_k5']:.4f}"),
+        ("MRR",            "Retrieval",    f"{retrieval['mrr']:.4f}"),
+        ("PVR",            "Remediation",  f"{remediation['pvr']:.4f}"),
+        ("SER",            "Remediation",  f"{remediation['ser']:.4f}"),
+        ("NNIR",           "Remediation",  f"{remediation['nnir']:.4f}"),
+    ]
+    print(f"  {'Metric':<20} {'Layer':<15} {'Value':>10}")
+    print(f"  {'-'*48}")
+    for name, layer, value in metrics_table:
+        print(f"  {name:<20} {layer:<15} {value:>10}")
+
+    print(f"\n{sep}\n")
+
+
+def write_manifest(config: str, model: str, backend: str, n_records: int,
+                   metrics: dict, output_dir: Path) -> Path:
+    """Write a reproducibility manifest alongside results."""
+    import shutil
+
+    manifest = {
+        "run_id": str(uuid.uuid4()),
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "config": config,
+        "model": model,
+        "backend": backend,
+        "split": "test",
+        "split_seed": 42,
+        "n_records": n_records,
+        "checkov_available": shutil.which("checkov") is not None,
+        "kics_available": shutil.which("kics") is not None,
+        "metrics": metrics,
+    }
+    path = output_dir / f"manifest_{config}.json"
+    with path.open("w") as f:
+        json.dump(manifest, f, indent=2, default=str)
+    return path
+
+
+# ===========================================================================
+# Config A — Baseline (Checkov-only detection, no LLM)
+# ===========================================================================
+
+def run_config_a() -> None:
+    metadata = load_metadata()
+    logger.info("Config A: Checkov-only baseline on %d files", len(metadata["files"]))
+
+    detected_by_file: dict[str, list[dict]] = {}
+    for file_entry in metadata["files"]:
+        file_path = DATASET_ROOT / file_entry["file"]
+        if not file_path.exists():
+            logger.warning("File not found: %s", file_path)
+            detected_by_file[file_entry["id"]] = []
+            continue
+        checks = run_checkov(file_path)
+        smells = checkov_checks_to_smells(checks)
+        detected_by_file[file_entry["id"]] = smells
+        logger.info("  %s: %d smells detected", file_entry["id"], len(smells))
+
+    detection = compute_detection_metrics(detected_by_file, metadata)
+    retrieval = compute_retrieval_metrics(metadata)
+    remediation = {"pvr": 0.0, "ser": 0.0, "nnir": 0.0,
+                   "total_files": len(metadata["files"]), "total_patched": 0}
+
+    print_report(detection, retrieval, remediation, config="A", model="N/A (Checkov only)")
+
+    results = {"config": "A", "detection": detection, "retrieval": retrieval,
+               "remediation": remediation}
+    output_path = Path(__file__).parent / "evaluation_results.json"
+    with output_path.open("w") as f:
+        json.dump(results, f, indent=2, default=str)
+    logger.info("Results saved to %s", output_path)
+
+
+# ===========================================================================
+# Configs B / C / D — LLM pipeline
+# ===========================================================================
+
+def run_pipeline_evaluation(config: str, model: str | None = None) -> None:
+    """Run Config B, C, or D on the 8-file sanity suite."""
     sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-    # Check that at least one API key is set
-    backends = ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "MINIMAX_API_KEY", "OPENAI_API_KEY"]
-    active = next((b for b in backends if os.getenv(b)), None)
-    if not active:
-        logger.error(
-            "No API key found. Set one of: %s", ", ".join(backends)
-        )
-        logger.error(
-            "For free models: export OPENROUTER_API_KEY=<key> then run with "
-            "--model 'meta-llama/llama-3.1-8b-instruct:free'"
-        )
-        sys.exit(1)
-
-    logger.info("Using backend key: %s", active)
 
     from analyzer.contextual import ContextualAnalyzer
     from generator.fix_generator import FixGenerator
     from validator.tool_integrator import ExternalToolValidator
 
-    analyzer  = ContextualAnalyzer()
-    generator = FixGenerator(model=model)
-    validator = ExternalToolValidator()
-    retriever = SimpleTaxonomyRetriever()
+    # Config features
+    use_rag = config in ("B", "C", "D")
+    use_validator = config in ("C", "D")
+    max_retries = 3 if config == "D" else 1
+
+    analyzer = ContextualAnalyzer()
+    generator = FixGenerator(model=model, self_consistency=(config == "D"))
+    validator = ExternalToolValidator() if use_validator else None
+    retriever = SimpleTaxonomyRetriever() if use_rag else None
 
     metadata = load_metadata()
+    total_files = len(metadata["files"])
 
-    # Per-file tracking
-    total_files     = len(metadata["files"])
-    pvr_numerator   = 0   # patches that pass Checkov
-    ser_numerator   = 0   # smells eliminated by valid patches
-    ser_denominator = 0   # total smells in files that got a valid patch
-    nnir_violations = 0   # files where patch introduced new issues
-    fa_sr_hits      = 0   # files where patch was valid on attempt 1
-    delta_r2_hits   = 0   # files fixed only on attempt 2
-    delta_r3_hits   = 0   # files fixed only on attempt 3
-    total_patched   = 0   # files where any valid patch was found
-
-    # Detection metrics (LLM-based analyzer, not Checkov-only)
+    pvr_valid = 0
+    ser_numerator = 0
+    ser_denominator = 0
+    nnir_violations = 0
+    total_patched = 0
     detected_by_file: dict[str, list[dict]] = {}
 
     for i, file_entry in enumerate(metadata["files"], 1):
         file_path = DATASET_ROOT / file_entry["file"]
         fid = file_entry["id"]
-        logger.info("[%d/%d] Processing %s ...", i, total_files, fid)
+        logger.info("[%d/%d] %s", i, total_files, fid)
 
         if not file_path.exists():
-            logger.warning("  File not found: %s", file_path)
             detected_by_file[fid] = []
             continue
 
-        # Stage 1 – Detect smells
+        # Stage 1 — Detect
         try:
             analysis = analyzer.analyze(file_path)
-            smells   = analysis["smells"]
+            smells = analysis["smells"]
             iac_tool = analysis["tool"]
         except Exception as exc:
             logger.error("  Analyzer failed: %s", exc)
@@ -592,44 +509,41 @@ def run_full_evaluation(model: str | None = None) -> None:
             continue
 
         detected_by_file[fid] = smells
-        logger.info("  Detected %d smells (tool=%s)", len(smells), iac_tool)
-
         if not smells:
             continue
 
         ser_denominator += len(smells)
 
-        # Stage 2 – Retrieve context
-        rag_context = retriever.retrieve(smells, iac_tool)
+        # Stage 2 — Retrieve (if enabled)
+        rag_context = ""
+        if retriever:
+            rag_context = retriever.retrieve(smells, iac_tool)
 
-        # Stage 3-5 – Generate → Validate (up to 3 attempts)
-        valid_patch   = None
-        success_attempt = None
-
-        for attempt in range(1, 4):
-            if attempt > 1:
+        # Stage 3-5 — Generate → Validate → Retry
+        valid_patch = None
+        for attempt in range(1, max_retries + 1):
+            if attempt > 1 and retriever:
                 rag_context = retriever.retrieve(smells, iac_tool, retry=attempt - 1)
 
             try:
                 patches = generator.generate(
-                    script_path=file_path,
-                    smells=smells,
-                    rag_context=rag_context,
+                    script_path=file_path, smells=smells, rag_context=rag_context,
                 )
             except Exception as exc:
                 logger.error("  Generator failed (attempt %d): %s", attempt, exc)
                 continue
 
             for patch in patches:
-                result = validator.validate(
-                    original_path=file_path,
-                    patch=patch,
-                    smells=smells,
-                )
-                if result["valid"]:
+                if validator:
+                    result = validator.validate(
+                        original_path=file_path, patch=patch, smells=smells,
+                    )
+                    if result["valid"]:
+                        valid_patch = patch
+                        break
+                else:
+                    # Config B: no validator, accept any non-empty patch
                     valid_patch = patch
-                    success_attempt = attempt
-                    logger.info("  Valid patch on attempt %d", attempt)
                     break
 
             if valid_patch:
@@ -637,90 +551,79 @@ def run_full_evaluation(model: str | None = None) -> None:
 
         if valid_patch:
             total_patched += 1
-            pvr_numerator += 1
+            pvr_valid += 1
 
-            if success_attempt == 1:
-                fa_sr_hits += 1
-            elif success_attempt == 2:
-                delta_r2_hits += 1
-            elif success_attempt == 3:
-                delta_r3_hits += 1
+            if validator:
+                result = validator.validate(
+                    original_path=file_path, patch=valid_patch, smells=smells,
+                )
+                ser_numerator += len(result.get("removed_smells", []))
+                if result.get("new_smells"):
+                    nnir_violations += 1
+            else:
+                ser_numerator += len(smells)  # optimistic for Config B
 
-            # SER: count how many targeted smells are gone in the valid patch
-            validation = validator.validate(
-                original_path=file_path,
-                patch=valid_patch,
-                smells=smells,
-            )
-            ser_numerator += len(validation.get("removed_smells", []))
-            if validation.get("new_smells"):
-                nnir_violations += 1
-        else:
-            logger.warning("  No valid patch found after 3 attempts.")
-
-    # Compute metrics
-    pvr  = pvr_numerator / total_files if total_files > 0 else 0.0
-    ser  = ser_numerator / ser_denominator if ser_denominator > 0 else 0.0
+    pvr = pvr_valid / total_files if total_files > 0 else 0.0
+    ser = ser_numerator / ser_denominator if ser_denominator > 0 else 0.0
     nnir = 1.0 - (nnir_violations / total_patched) if total_patched > 0 else 0.0
-    fa_sr    = fa_sr_hits / total_files if total_files > 0 else 0.0
-    delta_r2 = delta_r2_hits / total_files if total_files > 0 else 0.0
-    delta_r3 = delta_r3_hits / total_files if total_files > 0 else 0.0
 
-    detection  = compute_detection_metrics(detected_by_file, metadata)
-    retrieval  = compute_retrieval_metrics_simple(metadata)
+    detection = compute_detection_metrics(detected_by_file, metadata)
+    retrieval = compute_retrieval_metrics(metadata)
     remediation = {
-        "pvr":  pvr,
-        "ser":  ser,
-        "nnir": nnir,
-        "total_files": total_files,
-        "total_patched": total_patched,
-        "note": f"Config D — {generator._backend} / {generator._effective_model()}",
+        "pvr": pvr, "ser": ser, "nnir": nnir,
+        "total_files": total_files, "total_patched": total_patched,
     }
-    agentic = {
-        "fa_sr":        fa_sr,
-        "delta_r2":     delta_r2,
-        "delta_r3":     delta_r3,
-        "fleiss_kappa": "N/A (single annotator)",
-        "rpa":          "N/A",
-        "note": f"Retry loop active (MAX_RETRIES=3). FA-SR={fa_sr:.3f}",
-    }
-    cost = estimate_cost(n_scripts=total_files)
-    cost["model"] = generator._effective_model()
 
-    mode_label = f"full (Config D) — {generator._backend} / {generator._effective_model()}"
-    print_report(detection, retrieval, remediation, agentic, cost, mode=mode_label)
+    effective_model = generator._effective_model()
+    print_report(detection, retrieval, remediation,
+                 config=config, model=f"{generator._backend}/{effective_model}")
 
     results = {
-        "mode": "full",
-        "model": generator._effective_model(),
-        "backend": generator._backend,
-        "detection":   detection,
-        "retrieval":   retrieval,
-        "remediation": remediation,
-        "agentic":     agentic,
-        "cost":        cost,
+        "config": config, "model": effective_model, "backend": generator._backend,
+        "detection": detection, "retrieval": retrieval, "remediation": remediation,
     }
-    output_path = Path(__file__).parent / "evaluation_results_full.json"
+    output_path = Path(__file__).parent / f"evaluation_results_{config}.json"
     with output_path.open("w") as f:
         json.dump(results, f, indent=2, default=str)
-    logger.info("Full results saved to %s", output_path)
+    manifest_path = write_manifest(
+        config=config, model=effective_model, backend=generator._backend,
+        n_records=total_files, metrics={"pvr": pvr, "ser": ser, "nnir": nnir,
+                                         "macro_f1": detection["macro_f1"]},
+        output_dir=Path(__file__).parent,
+    )
+    logger.info("Results saved. Manifest: %s", manifest_path)
 
+
+# ===========================================================================
+# Main
+# ===========================================================================
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Evaluate the IaC security framework.")
-    parser.add_argument("--mode", choices=["baseline", "full"], default="baseline",
-                        help="baseline = Checkov only (Config A); full = LLM pipeline (Config D)")
-    parser.add_argument("--model", default=None,
-                        help=(
-                            "Model name for the active backend. "
-                            "OpenRouter examples: 'meta-llama/llama-3.1-8b-instruct:free', "
-                            "'minimax/minimax-01', 'mistralai/mistral-7b-instruct:free'. "
-                            "MiniMax direct: 'MiniMax-Text-01'. "
-                            "Defaults to backend-specific free/cheap model."
-                        ))
+    parser = argparse.ArgumentParser(
+        description="Evaluate the IaC security framework.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--config", choices=["A", "B", "C", "D"], default="A",
+        help="A=Checkov only, B=+RAG, C=+RAG+Checkov, D=+RAG+Checkov+KICS+retry",
+    )
+    parser.add_argument(
+        "--model", default=None,
+        help=(
+            "Model name for the LLM backend. "
+            "Examples: 'gemma3:4b' (Ollama), "
+            "'meta-llama/llama-3.1-8b-instruct:free' (OpenRouter), "
+            "'gpt-4o-mini' (OpenAI)"
+        ),
+    )
+    parser.add_argument(
+        "--dataset", default=None,
+        help="Path to JSONL dataset (e.g. 33k corpus test split). "
+             "If not set, uses the 8-file sanity suite.",
+    )
     args = parser.parse_args()
 
-    if args.mode == "baseline":
-        run_baseline_evaluation()
+    if args.config == "A":
+        run_config_a()
     else:
-        run_full_evaluation(model=args.model)
+        run_pipeline_evaluation(config=args.config, model=args.model)

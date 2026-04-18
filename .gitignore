@@ -42,3 +42,22 @@ Code/src/**/__pycache__/
 CLAUDE.md
 .claude/
 .sixth/
+.codex
+.codex/
+
+# Training artifacts (large or derived)
+Code/training/lora_out/
+Code/training/*.zip
+
+# Derived evaluation output
+Code/scripts/evaluation_results.json
+
+# Local sandbox / empty placeholders
+Code/scraping/.test/
+Code/notebooks/
+
+# External/third-party benchmark datasets (re-fetch from source)
+datasets/
+
+# HuggingFace dataset staging (nested git repo, 300+ MB)
+iac-security-dataset/

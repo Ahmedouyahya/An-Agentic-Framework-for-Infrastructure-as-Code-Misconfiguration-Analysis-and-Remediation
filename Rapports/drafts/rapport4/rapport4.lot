@@ -1,0 +1,18 @@
+\babel@toc {english}{}\relax 
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {1.1}{\ignorespaces Milestone list backing Figure~\ref {fig:timeline}.}}{10}{table.caption.8}%
+\contentsline {table}{\numberline {1.2}{\ignorespaces Benchmark landscape, April~2025 -- April~2026.}}{11}{table.caption.9}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {4.1}{\ignorespaces Corpus composition by \gls {iac} tool, after the salvage pass of Rapport~3 \S 2.4. Counts may shift modestly after the Checkov validator finishes the full sweep (Phase~4 of \texttt {Code/scraping/plan.md}).}}{20}{table.caption.11}%
+\contentsline {table}{\numberline {4.2}{\ignorespaces This thesis's corpus vs.\ Multi-IaC-Eval~\citep {multi2025iaceval}.}}{22}{table.caption.12}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {5.1}{\ignorespaces Revised evaluation metric set used by Rapport~4 and downstream.}}{25}{table.caption.13}%
+\contentsline {table}{\numberline {5.2}{\ignorespaces The four configurations of the framework. Rapport~2 only ran Configuration~A (8-file suite, no \gls {rag}, no validator). Rapport~4 plans Configurations~B, C, and~D on the 33k corpus's test split.}}{27}{table.caption.14}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {6.1}{\ignorespaces Headline results, to be filled in once Configurations B/C/D are run. Metrics defined in Chapter~\ref {chap:eval}.}}{29}{table.caption.15}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }

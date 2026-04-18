@@ -1,0 +1,47 @@
+{
+  "source": "/home/ahmedouyahye/Desktop/PFE/Code/scraping/output/dataset_v1_validated.jsonl",
+  "total_input_records": 31748,
+  "total_kept": 4050,
+  "kept_pct": 12.76,
+  "gold_only": true,
+  "max_chars": 8000,
+  "splits": {
+    "train": 3227,
+    "val": 411,
+    "test": 412
+  },
+  "by_iac_tool": {
+    "docker": 1300,
+    "terraform": 1229,
+    "kubernetes": 1197,
+    "cloudformation": 203,
+    "ansible": 121
+  },
+  "top_smells": {
+    "unpinned_base_image": 1102,
+    "missing_resource_limits": 942,
+    "latest_image_tag": 326,
+    "overly_permissive_cidr": 243,
+    "image_pull_policy_not_always": 211,
+    "capabilities_added": 196,
+    "apt_no_install_recommends": 155,
+    "host_namespace_shared": 94,
+    "root_user": 67,
+    "plaintext_protocol": 44,
+    "deletion_protection_disabled": 41,
+    "uri_credentials": 36,
+    "overly_permissive_iam": 35,
+    "hardcoded_password": 33,
+    "backup_disabled": 31,
+    "read_only_fs_disabled": 30,
+    "privileged_container": 28,
+    "secrets_in_env": 23,
+    "validate_certs_disabled": 12,
+    "missing_encryption": 12,
+    "service_account_token_auto_mount": 11,
+    "allow_privilege_escalation": 11,
+    "public_access_block_disabled": 10,
+    "overly_permissive_acl": 10,
+    "cors_wildcard": 7
+  }
+}

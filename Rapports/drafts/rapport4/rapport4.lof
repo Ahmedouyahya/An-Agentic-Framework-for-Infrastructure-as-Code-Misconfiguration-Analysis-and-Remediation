@@ -1,0 +1,13 @@
+\babel@toc {english}{}\relax 
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {1.1}{\ignorespaces Technology-evolution timeline across four tracks: agentic \gls {rag}, \gls {iac} smell detection, benchmarks, and \gls {iac} taxonomies. The thesis target sits at the intersection of all four: a remediation contribution that uses the 2024-era \gls {crag} retry pattern, the 2025 War 62-category taxonomy, and the 2025 PatchEval-style scanner-validated evaluation, applied to the \gls {iac} domain where IntelliSA~\citep {intellisa2026} now sets the 2026 detection baseline.}}{8}{figure.caption.7}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Reference architecture (carried over from Rapport~2). The two changes in this report are: (i)~the External Tool Integrator now runs KICS in addition to Checkov, and (ii)~the Fix Generator emits a self-consistency confidence score over $N=5$ samples instead of a log-prob.}}{16}{figure.caption.10}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }

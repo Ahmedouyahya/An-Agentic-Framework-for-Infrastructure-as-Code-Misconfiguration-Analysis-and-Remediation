@@ -52,9 +52,11 @@ from scraping.config import (
     MERGED_DIR,
     OUTPUT_DIR,
     RAW_DIR,
+    WATCHDOG_STALL_SECONDS,
 )
 from scraping.processors.merger import merge, print_stats
 from scraping.schemas import ScrapeManifest
+from scraping.storage.metrics import MetricsCollector
 from scraping.storage.progress import ProgressTracker
 from scraping.storage.writer import JsonlWriter, count_existing, load_existing_hashes
 
@@ -120,12 +122,14 @@ async def run_github_commits(
     token: str,
     queries: list,
     progress: ProgressTracker,
+    metrics: MetricsCollector,
 ) -> int:
     from scraping.scrapers.github import search_commits
 
     existing_hashes = load_existing_hashes(output_path)
     n_before = count_existing(output_path)
     print(f"[commits] {n_before} existing records | {len(queries)} queries | resuming...")
+    metrics.set_phase("commits")
 
     written = 0
     with JsonlWriter(output_path) as writer:
@@ -139,8 +143,15 @@ async def run_github_commits(
             writer.write(record)
             written += 1
             progress.increment_written(1)
-            if written % 50 == 0:
-                print(f"  [commits] +{written} new records (total written this session)")
+            metrics.record_written(1)
+            report = metrics.tick()
+            if report:
+                print(f"  [metrics] records={report['records']} "
+                      f"rate/min={report['rate_per_min']} "
+                      f"idle_s={report['idle_s']}")
+            if metrics.stalled():
+                print(f"[watchdog] STALL — no writes in {WATCHDOG_STALL_SECONDS}s, exiting for supervisor restart")
+                raise SystemExit(2)
 
     manifest.output_files.append(str(output_path))
     print(f"[commits] Done — {written} new records this session")
@@ -154,12 +165,14 @@ async def run_github_code(
     token: str,
     queries: list,
     progress: ProgressTracker,
+    metrics: MetricsCollector,
 ) -> int:
     from scraping.scrapers.github import search_code
 
     existing_hashes = load_existing_hashes(output_path)
     n_before = count_existing(output_path)
     print(f"[code] {n_before} existing records | {len(queries)} queries | resuming...")
+    metrics.set_phase("code")
 
     written = 0
     with JsonlWriter(output_path) as writer:
@@ -173,11 +186,54 @@ async def run_github_code(
             writer.write(record)
             written += 1
             progress.increment_written(1)
-            if written % 50 == 0:
-                print(f"  [code] +{written} new records")
+            metrics.record_written(1)
+            metrics.tick()
+            if metrics.stalled():
+                print(f"[watchdog] STALL — exiting for supervisor restart")
+                raise SystemExit(2)
 
     manifest.output_files.append(str(output_path))
     print(f"[code] Done — {written} new records this session")
+    return written
+
+
+async def run_gharchive(
+    output_path: Path,
+    manifest: ScrapeManifest,
+    token: str,
+    hours_back: int,
+    progress: ProgressTracker,
+    metrics: MetricsCollector,
+) -> int:
+    from scraping.scrapers.gharchive import scrape_gharchive
+
+    existing_hashes = load_existing_hashes(output_path)
+    n_before = count_existing(output_path)
+    print(f"[gharchive] {n_before} existing records | hours_back={hours_back} | resuming...")
+    metrics.set_phase("gharchive")
+
+    written = 0
+    with JsonlWriter(output_path) as writer:
+        async for record in scrape_gharchive(
+            hours_back=hours_back, token=token, progress=progress,
+        ):
+            h = record.compute_hash()
+            if h in existing_hashes:
+                continue
+            existing_hashes.add(h)
+            writer.write(record)
+            written += 1
+            progress.increment_written(1)
+            metrics.record_written(1)
+            report = metrics.tick()
+            if report:
+                print(f"  [gharchive metrics] records={report['records']} rate/min={report['rate_per_min']}")
+            if metrics.stalled():
+                print("[watchdog] STALL — exiting for supervisor restart")
+                raise SystemExit(2)
+
+    manifest.output_files.append(str(output_path))
+    print(f"[gharchive] Done — {written} new records this session")
     return written
 
 
@@ -187,12 +243,14 @@ async def run_known_repos(
     token: str,
     repos: list,
     progress: ProgressTracker,
+    metrics: MetricsCollector,
 ) -> int:
     from scraping.scrapers.known_repos import scrape_all_known_repos
 
     existing_hashes = load_existing_hashes(output_path)
     n_before = count_existing(output_path)
     print(f"[repos] {n_before} existing records | {len(repos)} repos | resuming...")
+    metrics.set_phase("repos")
 
     written = 0
     with JsonlWriter(output_path) as writer:
@@ -206,8 +264,11 @@ async def run_known_repos(
             writer.write(record)
             written += 1
             progress.increment_written(1)
-            if written % 100 == 0:
-                print(f"  [repos] +{written} new records")
+            metrics.record_written(1)
+            metrics.tick()
+            if metrics.stalled():
+                print(f"[watchdog] STALL — exiting for supervisor restart")
+                raise SystemExit(2)
 
     manifest.output_files.append(str(output_path))
     print(f"[repos] Done — {written} new records this session")
@@ -244,6 +305,22 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--merge-output", type=Path, default=None,
                    help="Output path for merged file")
 
+    # Validate: run scanners on an existing JSONL to add ground-truth labels
+    p.add_argument("--validate", type=Path, default=None,
+                   help="Path to JSONL to validate with Checkov/tfsec/KICS")
+    p.add_argument("--validate-output", type=Path, default=None,
+                   help="Output path for validated JSONL (defaults to <input>.validated.jsonl)")
+    p.add_argument("--validate-workers", type=int, default=4,
+                   help="Number of parallel validator workers")
+    p.add_argument("--validate-limit", type=int, default=None,
+                   help="Max records to validate (for smoke testing)")
+
+    # GHArchive discovery mode
+    p.add_argument("--gharchive", action="store_true",
+                   help="Enable GHArchive commit discovery (bypasses search API)")
+    p.add_argument("--gharchive-hours", type=int, default=24,
+                   help="How many recent hours of GHArchive to scan (default 24)")
+
     # Options
     p.add_argument("--max-pages", type=int, default=10,
                    help="Max search pages per query (default: 10 = 300 commits/query)")
@@ -260,6 +337,21 @@ def build_parser() -> argparse.ArgumentParser:
 async def _async_main(args: argparse.Namespace) -> None:
     from scraping.scrapers.github import _GlobalRateLimiter
     _GlobalRateLimiter.reset()
+
+    # Validate mode — no scraping, just run scanners on existing JSONL
+    if args.validate:
+        from scraping.processors.validator import validate_jsonl
+        in_path  = Path(args.validate)
+        out_path = args.validate_output or in_path.with_suffix(".validated.jsonl")
+        print(f"[validate] {in_path} → {out_path}")
+        stats = validate_jsonl(
+            input_path=in_path,
+            output_path=out_path,
+            workers=args.validate_workers,
+            limit=args.validate_limit,
+        )
+        print(f"[validate] stats: {stats}")
+        return
 
     # ---------------------------------------------------------------------------
     # Resolve configuration (account mode vs manual mode)
@@ -294,6 +386,12 @@ async def _async_main(args: argparse.Namespace) -> None:
     progress = ProgressTracker(prog_path)
     print(f"Progress: {progress.summary()}")
 
+    # Metrics + stall watchdog
+    metrics = MetricsCollector(
+        metrics_path=OUTPUT_DIR / f"metrics_{args.account or 0}.jsonl",
+        stall_seconds=WATCHDOG_STALL_SECONDS,
+    )
+
     manifest = ScrapeManifest(run_id=str(uuid.uuid4())[:8], started_at=_utcnow())
 
     # ---------------------------------------------------------------------------
@@ -305,17 +403,22 @@ async def _async_main(args: argparse.Namespace) -> None:
     if do_commits:
         tasks["commits"] = run_github_commits(
             output_dir / "github_commits.jsonl", manifest,
-            args.max_pages, token, commit_queries, progress,
+            args.max_pages, token, commit_queries, progress, metrics,
         )
     if do_code:
         tasks["code"] = run_github_code(
             output_dir / "github_code.jsonl", manifest,
-            3, token, code_queries, progress,
+            3, token, code_queries, progress, metrics,
         )
     if do_known:
         tasks["repos"] = run_known_repos(
             output_dir / "known_repos.jsonl", manifest,
-            token, repos, progress,
+            token, repos, progress, metrics,
+        )
+    if args.gharchive:
+        tasks["gharchive"] = run_gharchive(
+            output_dir / "gharchive.jsonl", manifest,
+            token, args.gharchive_hours, progress, metrics,
         )
 
     if tasks:
@@ -355,8 +458,11 @@ async def _async_main(args: argparse.Namespace) -> None:
     manifest.finished_at = _utcnow()
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     manifest.save(OUTPUT_DIR / "manifest.json")
+    metrics.save_snapshot(OUTPUT_DIR / f"metrics_snapshot_{args.account or 0}.json")
+    progress.flush()
     print(f"\nDone. New records this session: {total_written}")
     print(f"Progress saved: {prog_path}")
+    print(f"Final metrics: {metrics.final_summary()}")
 
 
 def main() -> None:
@@ -368,6 +474,7 @@ def main() -> None:
     nothing_selected = not any([
         args.account, args.github_commits, args.github_code,
         args.known_repos, args.all, args.merge,
+        args.validate, args.gharchive,
     ])
     if nothing_selected:
         parser.print_help()

@@ -8,9 +8,9 @@ The resulting dataset contains **33,667 unique records** across five IaC technol
 
 ## How It Works
 
-The scraper uses three complementary strategies to collect as much data as possible.
+The scraper uses **five** complementary strategies to collect as much data as possible.
 
-### 1. GitHub Commit Search (main source — 31,348 records)
+### 1. GitHub Commit Search with date-window partitioning
 
 Searches GitHub for commits whose messages contain security-related keywords (e.g. `fix hardcoded credentials terraform`). For each matching commit:
 
@@ -20,7 +20,37 @@ Searches GitHub for commits whose messages contain security-related keywords (e.
 4. Extracts the unified diff
 5. Detects which security smell was fixed using regex patterns on the removed lines
 
-60 search queries are used, covering all 5 IaC tools. Two GitHub accounts can be run in parallel, each covering a different half of the queries.
+**Date-window partitioning**: GitHub search is hard-capped at 1000 results per query. To break that cap, every base query is fanned out across ~295 non-overlapping 14-day `committer-date:` windows walking backward from today to 2015-01-01. Each window is tracked independently in the progress file, so the effective discovery space is `(base queries) × (windows) ≈ 3000 × 295 ≈ 900,000` unique search scopes.
+
+The base query set itself is generated programmatically from `(fix_verb × security_issue × iac_tool)` + CWE IDs + scanner rule prefixes, yielding ~3,000 queries out of the box.
+
+### 2. GHArchive discovery mode (`--gharchive`)
+
+Downloads hourly public dumps from https://data.gharchive.org/, pre-filters `PushEvent`s by a repo-name regex (terraform / k8s / docker / ansible / …), then resolves each push's head commit through the GitHub Core API (which has 166× more quota than Search API). One hour of GHArchive typically yields **~1,700 candidate IaC-repo pushes**, so a week of continuous discovery produces ~280k candidate commits with zero Search-API usage.
+
+### 3. IaC Security Scanner Resources
+
+Checkov and KICS include labelled example files as part of their test suites. Each security check has a "failed" example and a "passed" example — a natural before/after pair. These are scraped directly from the repositories:
+
+- **Checkov** (bridgecrewio/checkov)
+- **KICS** (Checkmarx/kics)
+- **tfsec/defsec** (aquasecurity/tfsec, aquasecurity/defsec)
+
+### 4. Known Vulnerable Repositories
+
+Curated repositories with intentionally insecure IaC configurations:
+
+- **TerraGoat** — deliberately vulnerable Terraform
+- **Kubernetes-Goat** — deliberately vulnerable Kubernetes manifests
+- **OWASP WrongSecrets** — secrets management anti-patterns
+
+These contribute insecure-only records (no fix available) useful for smell detection training.
+
+### 5. Scanner-validated labels (`--validate`)
+
+After scraping, a separate pass runs **Checkov**, **tfsec**, and **KICS** on every `code_before` / `code_after` and attaches a `validated_smells_before` / `validated_smells_after` list of real findings (rule_id, severity, CWE, line number). This converts the regex-labelled dataset into a **scanner-validated** ground-truth dataset — which is what makes it usable for downstream LLM fine-tuning and benchmarking contributions.
+
+Install any subset of the scanners; the validator auto-detects which are available on `$PATH`.
 
 ### 2. IaC Security Scanner Resources (1,855 records)
 
@@ -120,28 +150,50 @@ python -m scraping.main --merge
 bash scraping/check_progress.sh
 ```
 
+### Week-long unattended runs (`run_forever.sh`)
+
+For multi-day scrapes, use the supervisor script:
+
+```bash
+# default: up to 7 days (set MAX_RUNTIME_HOURS for shorter/longer)
+./scraping/run_forever.sh 1       # account 1
+./scraping/run_forever.sh 2       # account 2 (separate terminal)
+
+MAX_RUNTIME_HOURS=168 ./scraping/run_forever.sh 1
+```
+
+The supervisor restarts the scraper on any non-clean exit: watchdog stalls (exit 2 → 30 s backoff + retry), unexpected crashes (→ 2 min backoff + retry), network blips, kernel signals. It stops cleanly when the scraper exhausts its queries (exit 0).
+
 ### Options
 | Flag | Description |
 |---|---|
-| `--account 1/2` | Run as account 1 or 2 (recommended) |
+| `--account 1/2` | Run as account 1 or 2 (recommended for multi-account) |
 | `--all` | Run all scrapers with a single account |
 | `--github-commits` | Run only the commit search scraper |
 | `--github-code` | Run only the code search scraper |
 | `--known-repos` | Run only the known vulnerable repos scraper |
+| `--gharchive` | Enable GHArchive discovery mode (bypasses Search API) |
+| `--gharchive-hours N` | Hours of GHArchive to scan (default 24) |
+| `--validate PATH` | Run Checkov/tfsec/KICS on an existing JSONL and attach validated labels |
+| `--validate-workers N` | Parallel validator workers (default 4) |
+| `--validate-limit N` | Max records to validate (for smoke tests) |
 | `--merge` | Merge all raw JSONL files into one deduplicated dataset |
-| `--max-pages N` | Search pages per query (default: 10 = 300 commits/query) |
+| `--max-pages N` | Search pages per query/window (default: 10) |
 | `--verbose` | Enable debug logging |
 
 ---
 
-## Resumability
+## Resumability & crash-safety
 
-The scraper is **fully resumable**. If it is stopped for any reason (Ctrl-C, power off, crash), just re-run the same command. It will:
+The scraper is engineered for week-long unattended runs:
 
-- Skip queries that were already completed (tracked in `progress_1.json` / `progress_2.json`)
-- Skip repos that were already scraped
-- Skip records already in the JSONL file (by SHA-256 hash of the content)
-- Append only new records
+- **Per-page progress**: each `(query, date_window, page)` tuple is tracked independently in `progress_*.json`. A crash mid-query resumes on the next page, not the next query.
+- **Atomic progress writes**: the progress file is always written via `tmp + os.replace()`, so a crash during a write cannot produce a half-corrupted file.
+- **Crash-safe JSONL writes**: `os.fsync()` every 50 records. On open, the writer seeks to EOF, walks backward to the last newline, and truncates any trailing partial line, so a power-off mid-write leaves a clean file.
+- **Robust rate-limit layer**: honours `Retry-After`, `X-RateLimit-Reset`, exponential backoff with jitter on 403/429/5xx, preemptive pause when remaining quota drops below 20, and a circuit breaker that pauses all requests for 10 minutes after 3 consecutive 403 responses (GitHub abuse-detection secondary limit).
+- **Watchdog + supervisor**: if no new records are written for 15 minutes, the scraper exits with code 2. The `run_forever.sh` supervisor restarts it. Crashes are logged to `output/run_forever*.log`.
+- **Metrics**: one JSON line per minute to `output/metrics_*.jsonl` (records, rate/min, API-call count, status-code histogram, idle time, current query).
+- **Hash dedup on resume**: SHA-256 of `code_before` is computed for every record and matched against previously written hashes, so re-runs never produce duplicates.
 
 ---
 

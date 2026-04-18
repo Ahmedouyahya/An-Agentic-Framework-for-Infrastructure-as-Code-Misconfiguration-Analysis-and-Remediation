@@ -1,0 +1,11 @@
+# Pinned versions known to work together on Kaggle (T4 x2, CUDA 12.1).
+# Install inside the Kaggle notebook BEFORE running 02_train_qlora.py:
+#   !pip install -q -U -r requirements.txt
+transformers==4.44.2
+datasets==2.21.0
+peft==0.12.0
+accelerate==0.34.2
+bitsandbytes==0.43.3
+trl==0.10.1
+sentencepiece>=0.2.0
+protobuf<5

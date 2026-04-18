@@ -17,8 +17,10 @@ import asyncio
 import base64
 import hashlib
 import logging
+import random
 import re
 import time
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
@@ -28,6 +30,9 @@ from scraping.config import (
     CODE_SEARCH_QUERIES,
     COMMIT_SEARCH_QUERIES,
     COMMITS_PER_PAGE,
+    DATE_WINDOW_DAYS,
+    DATE_WINDOW_END,
+    DATE_WINDOW_START,
     GITHUB_API_BASE,
     GITHUB_TOKEN,
     MAX_CONCURRENT_REQUESTS,
@@ -63,23 +68,82 @@ def _make_record_id(repo: str, commit_sha: str, file_path: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Small helpers — rate limit math & date window iteration
+# ---------------------------------------------------------------------------
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _backoff(attempt: int, base: int = 2, cap: int = 300, jitter: bool = True) -> int:
+    """Exponential backoff with optional ±25% jitter."""
+    wait = min(cap, base * (2 ** attempt))
+    if jitter:
+        wait = int(wait * (0.75 + random.random() * 0.5))
+    return max(1, wait)
+
+
+def _iter_date_windows(
+    start: date,
+    end: date,
+    days: int,
+) -> List[Tuple[str, str]]:
+    """
+    Yield (start_iso, end_iso) tuples walking BACKWARD from `end` to `start`
+    in `days`-long windows. Most recent first (yields the newest fixes first
+    during a long scrape).
+    """
+    windows: List[Tuple[str, str]] = []
+    cur_end = end
+    while cur_end >= start:
+        cur_start = max(start, cur_end - timedelta(days=days - 1))
+        windows.append((cur_start.isoformat(), cur_end.isoformat()))
+        cur_end = cur_start - timedelta(days=1)
+    return windows
+
+
+# ---------------------------------------------------------------------------
 # Global shared rate limiter — ALL GitHubSession instances share this.
 # Enforces the 5000 req/hr GitHub API limit across parallel scrapers.
 # ---------------------------------------------------------------------------
 
 class _GlobalRateLimiter:
     """
-    Token-bucket rate limiter shared across all GitHubSession instances.
-    Controls total throughput to stay within GitHub's 5000 req/hr limit.
+    Token-bucket rate limiter + circuit breaker shared across all
+    GitHubSession instances.
+
+    Enforces:
+      - GitHub 5000 req/hr limit (via REST_REQUESTS_PER_SECOND interval)
+      - Max MAX_CONCURRENT_REQUESTS in-flight requests
+      - Serialised search API requests (30/min)
+      - Circuit breaker: pauses ALL requests for a cooldown period after
+        repeated 403/429 responses (secondary rate limit / abuse detection).
     """
     _instance: Optional["_GlobalRateLimiter"] = None
 
+    # Circuit breaker thresholds
+    _CB_FAIL_THRESHOLD = 3      # consecutive 403/429 before tripping
+    _CB_COOLDOWN_SECS  = 600    # 10-minute pause when tripped
+
     def __init__(self) -> None:
-        self._interval = 1.0 / REST_REQUESTS_PER_SECOND  # seconds between requests
+        self._interval = 1.0 / REST_REQUESTS_PER_SECOND
         self._last_request_time: float = 0.0
         self._lock = asyncio.Lock()
         self._burst_semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
         self._search_semaphore = asyncio.Semaphore(1)
+
+        # Circuit-breaker state
+        self._cb_fail_count = 0
+        self._cb_pause_until: float = 0.0
+
+        # Preemptive pause state (remaining quota low)
+        self._quota_pause_until: float = 0.0
+
+        # Dedup pause logging across concurrent coroutines
+        self._logged_pause_until: float = 0.0
 
     @classmethod
     def get(cls) -> "_GlobalRateLimiter":
@@ -89,11 +153,23 @@ class _GlobalRateLimiter:
 
     @classmethod
     def reset(cls) -> None:
-        """Call this at the start of a new asyncio.run() to reset state."""
         cls._instance = None
 
+    async def _wait_for_pauses(self) -> None:
+        while True:
+            now = time.time()
+            until = max(self._cb_pause_until, self._quota_pause_until)
+            if until <= now:
+                return
+            wait = until - now
+            if until > self._logged_pause_until + 1 and wait > 5:
+                logger.info("Rate limiter paused until %s (%.0fs)",
+                            time.strftime("%H:%M:%S", time.localtime(until)), wait)
+                self._logged_pause_until = until
+            await asyncio.sleep(min(wait, 30))
+
     async def acquire_rest(self) -> None:
-        """Acquire a REST API slot — rate-limited to REST_REQUESTS_PER_SECOND."""
+        await self._wait_for_pauses()
         async with self._burst_semaphore:
             async with self._lock:
                 now = asyncio.get_event_loop().time()
@@ -103,11 +179,34 @@ class _GlobalRateLimiter:
                 self._last_request_time = asyncio.get_event_loop().time()
 
     async def acquire_search(self) -> None:
-        """Acquire a search API slot (serialised + SEARCH_DELAY_SECONDS after)."""
+        await self._wait_for_pauses()
         await self._search_semaphore.acquire()
 
     def release_search(self) -> None:
         self._search_semaphore.release()
+
+    # ------------------------------------------------------------------
+    # Circuit breaker interactions
+    # ------------------------------------------------------------------
+
+    def on_success(self) -> None:
+        self._cb_fail_count = 0
+
+    def on_auth_failure(self) -> None:
+        """Record a 403/429 response. May trip the circuit breaker."""
+        self._cb_fail_count += 1
+        if self._cb_fail_count >= self._CB_FAIL_THRESHOLD:
+            self._cb_pause_until = time.time() + self._CB_COOLDOWN_SECS
+            logger.error(
+                "Circuit breaker TRIPPED after %d consecutive auth failures — "
+                "pausing all requests for %ds",
+                self._cb_fail_count, self._CB_COOLDOWN_SECS,
+            )
+            self._cb_fail_count = 0
+
+    def preemptive_pause(self, seconds: float) -> None:
+        """Pause requests for N seconds (called when remaining quota is low)."""
+        self._quota_pause_until = max(self._quota_pause_until, time.time() + seconds)
 
 
 # ---------------------------------------------------------------------------
@@ -142,47 +241,114 @@ class GitHubSession:
             await self._session.close()
 
     async def get(self, url: str, params: Optional[Dict] = None,
-                  accept: Optional[str] = None) -> Tuple[int, Any]:
+                  accept: Optional[str] = None,
+                  max_retries: int = 4) -> Tuple[int, Any]:
         """
-        GET url with shared global rate limiting.
-        Returns (status_code, body). Body is dict/list or str.
+        GET with robust rate-limit handling:
+
+        - Honours Retry-After header (secondary rate limit / abuse detection)
+        - Honours X-RateLimit-Reset on 403/429
+        - Exponential backoff with jitter on transient 5xx and network errors
+        - Preemptive pause when X-RateLimit-Remaining drops below 20
+        - Circuit breaker trips after repeated 403/429
         """
         hdrs = {}
         if accept:
             hdrs["Accept"] = accept
 
-        # Throttle via shared global rate limiter
-        await self._rl.acquire_rest()
+        for attempt in range(max_retries):
+            await self._rl.acquire_rest()
 
-        for attempt in range(4):
             try:
-                async with self._session.get(url, params=params, headers=hdrs) as resp:
-                    remaining = int(resp.headers.get("X-RateLimit-Remaining", "999"))
-                    reset_at   = int(resp.headers.get("X-RateLimit-Reset", "0"))
+                async with self._session.get(
+                    url, params=params, headers=hdrs,
+                    timeout=aiohttp.ClientTimeout(
+                        total=25, connect=10, sock_connect=10, sock_read=20,
+                    ),
+                ) as resp:
+                    status = resp.status
 
-                    if resp.status == 429 or remaining <= 5:
-                        wait = max(reset_at - int(time.time()), 10)
-                        logger.warning("Rate limited (remaining=%d) — sleeping %ds", remaining, wait)
+                    # Rate limit headers (present on most authenticated calls)
+                    remaining = _safe_int(resp.headers.get("X-RateLimit-Remaining"), default=999)
+                    reset_at  = _safe_int(resp.headers.get("X-RateLimit-Reset"), default=0)
+                    retry_after = _safe_int(resp.headers.get("Retry-After"), default=0)
+
+                    # Preemptive pause if quota is nearly exhausted
+                    if remaining <= 20 and reset_at > 0:
+                        cooldown = max(reset_at - int(time.time()), 5)
+                        logger.warning(
+                            "Quota low (remaining=%d) — preemptive pause %ds",
+                            remaining, cooldown,
+                        )
+                        self._rl.preemptive_pause(cooldown)
+
+                    # ----------------------------------------------------
+                    # 429 / 403: rate limit or secondary (abuse) limit
+                    # ----------------------------------------------------
+                    if status in (429, 403):
+                        self._rl.on_auth_failure()
+                        if retry_after:
+                            wait = retry_after + 2
+                        elif reset_at:
+                            wait = max(reset_at - int(time.time()) + 2, 30)
+                        else:
+                            wait = _backoff(attempt, base=30, cap=600)
+                        logger.warning(
+                            "Rate-limit response %d — sleeping %ds (attempt %d/%d) url=%s",
+                            status, wait, attempt + 1, max_retries, url,
+                        )
                         await asyncio.sleep(wait)
-                        await self._rl.acquire_rest()  # re-throttle before retry
                         continue
 
-                    if resp.status == 202:  # GitHub processing async request
-                        await asyncio.sleep(3)
+                    # ----------------------------------------------------
+                    # 202: GitHub still computing — just wait and retry
+                    # ----------------------------------------------------
+                    if status == 202:
+                        await asyncio.sleep(3 + attempt * 2)
                         continue
 
+                    # ----------------------------------------------------
+                    # 5xx: transient — exponential backoff
+                    # ----------------------------------------------------
+                    if 500 <= status < 600:
+                        wait = _backoff(attempt, base=2, cap=120)
+                        logger.warning(
+                            "Server error %d — retry in %ds (attempt %d/%d)",
+                            status, wait, attempt + 1, max_retries,
+                        )
+                        await asyncio.sleep(wait)
+                        continue
+
+                    # ----------------------------------------------------
+                    # 2xx / 4xx (not rate limit): return directly
+                    # ----------------------------------------------------
                     ct = resp.headers.get("Content-Type", "")
                     if "json" in ct:
-                        body = await resp.json(content_type=None)
+                        try:
+                            body = await resp.json(content_type=None)
+                        except Exception:
+                            body = None
                     else:
-                        raw = await resp.read()
-                        body = raw.decode("utf-8", errors="replace")
-                    return resp.status, body
+                        try:
+                            raw = await resp.read()
+                            body = raw.decode("utf-8", errors="replace")
+                        except Exception:
+                            body = None
 
-            except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
-                logger.warning("Request error (%s) — retry %d/3", exc, attempt + 1)
-                await asyncio.sleep(2 ** attempt)
+                    if 200 <= status < 300:
+                        self._rl.on_success()
+                    return status, body
 
+            except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as exc:
+                wait = _backoff(attempt, base=2, cap=20)
+                logger.warning(
+                    "Network error %s — retry in %ds (attempt %d/%d)",
+                    type(exc).__name__, wait, attempt + 1, max_retries,
+                )
+                await asyncio.sleep(wait)
+                continue
+
+        logger.error("GET failed after %d attempts: %s", max_retries, url)
         return 0, None
 
     async def search_get(self, url: str, params: Optional[Dict] = None) -> Tuple[int, Any]:
@@ -284,11 +450,15 @@ async def _process_commit(
             return None
 
         # Reconstruct before from after + reverse patch if API failed
+        before_quality = "api"
         if not code_before and patch and code_after:
-            code_before = _reverse_apply_patch(code_after, patch)
+            code_before, before_quality = _reverse_apply_patch(code_after, patch)
 
         if not code_before:
+            # Final fallback: we keep the record but mark it so downstream
+            # tiering can route it to a lower quality bucket.
             code_before = f"# [before content unavailable]\n{patch}"
+            before_quality = "unavailable"
 
         # Detect IaC tool
         tool = detect_iac_tool(file_path, code_before)
@@ -331,32 +501,153 @@ async def _process_commit(
             commit_message=message[:500] if message else None,
             commit_date=date,
             commit_author=author,
+            code_before_quality=before_quality,
         )
 
     results = await asyncio.gather(*[_fetch_pair(fp, patch, fi) for fp, patch, fi in tasks])
     return [r for r in results if r is not None]
 
 
-def _reverse_apply_patch(after: str, patch: str) -> str:
+def _reverse_apply_patch(after: str, patch: str) -> Tuple[str, str]:
     """
-    Very simple patch reversal: reconstruct 'before' by reversing added/removed lines.
-    Not a full unified diff parser — just a heuristic for when the API is unavailable.
+    Reconstruct 'before' content by reverse-applying a unified diff to 'after'.
+
+    Uses the `unidiff` library to parse hunk headers and apply them exactly,
+    so if the patch covers the full file we recover `before` losslessly.
+    For sparse patches (partial hunks), we still reverse-apply the known
+    hunks and leave the rest of the file untouched — much better than the
+    earlier set-based heuristic which lost line ordering.
+
+    Returns: (before_text, quality)
+      quality: 'exact'   — patch covered the whole file
+               'partial' — patch covered only parts (still useful)
+               'heuristic' — parsing failed, fell back to naive reversal
     """
-    lines_after = after.splitlines()
-    # From the patch, collect removed lines (they were in 'before')
-    removed = [line[1:] for line in patch.splitlines() if line.startswith("-") and not line.startswith("---")]
-    # Collect added lines (they are in 'after', not 'before')
-    added   = {line[1:] for line in patch.splitlines() if line.startswith("+") and not line.startswith("+++")}
-    before_lines = [l for l in lines_after if l not in added] + removed
-    return "\n".join(before_lines)
+    try:
+        from unidiff import PatchSet  # local import keeps top-level deps slim
+    except Exception:
+        # Fallback: keep the old naive behaviour but clearly tag it.
+        lines_after = after.splitlines()
+        removed = [l[1:] for l in patch.splitlines() if l.startswith("-") and not l.startswith("---")]
+        added = {l[1:] for l in patch.splitlines() if l.startswith("+") and not l.startswith("+++")}
+        before_lines = [l for l in lines_after if l not in added] + removed
+        return "\n".join(before_lines), "heuristic"
+
+    # `unidiff` expects a full patch with a header. GitHub's per-file `patch`
+    # field omits the --- / +++ preamble, so synthesise one.
+    if not patch.lstrip().startswith(("---", "diff ")):
+        header = "--- a/file\n+++ b/file\n"
+        patch_text = header + patch
+    else:
+        patch_text = patch
+
+    try:
+        ps = PatchSet(patch_text)
+    except Exception:
+        return _reverse_apply_patch(after, patch)[0], "heuristic"  # unlikely but safe
+
+    after_lines = after.splitlines(keepends=False)
+    before_lines = list(after_lines)
+    covered_lines = 0
+
+    # Walk hunks in reverse so later line-number edits don't shift earlier ones.
+    for pf in ps:
+        for hunk in reversed(list(pf)):
+            # target_start is 1-based line in 'after'; we slice it out and
+            # replace with the 'source' (before) lines from the hunk.
+            tgt_start = hunk.target_start - 1 if hunk.target_start > 0 else 0
+            tgt_end   = tgt_start + hunk.target_length
+            source_lines = [
+                str(line)[1:].rstrip("\n")
+                for line in hunk
+                if line.is_context or line.is_removed
+            ]
+            before_lines[tgt_start:tgt_end] = source_lines
+            covered_lines += hunk.target_length
+
+    quality = "exact" if covered_lines >= len(after_lines) else "partial"
+    return "\n".join(before_lines), quality
+
+
+# In-memory LRU for repo metadata — the commit scraper sees the same repo
+# dozens of times per window, and each previous iteration was making a fresh
+# /repos/owner/name call (~10% of all API traffic). Cap at 4000 to bound
+# memory; evict oldest when full.
+_REPO_META_CACHE: Dict[str, Dict[str, Any]] = {}
+_REPO_META_CACHE_MAX = 4000
 
 
 async def _get_repo_meta(session: GitHubSession, owner: str, repo: str) -> Dict[str, Any]:
+    key = f"{owner}/{repo}"
+    cached = _REPO_META_CACHE.get(key)
+    if cached is not None:
+        return cached
+
     url = f"{GITHUB_API_BASE}/repos/{owner}/{repo}"
     status, body = await session.get(url)
-    if status == 200 and isinstance(body, dict):
-        return body
-    return {}
+    meta = body if (status == 200 and isinstance(body, dict)) else {}
+
+    if len(_REPO_META_CACHE) >= _REPO_META_CACHE_MAX:
+        # Evict ~10% of oldest entries (dict preserves insertion order on 3.7+)
+        drop = max(1, _REPO_META_CACHE_MAX // 10)
+        for k in list(_REPO_META_CACHE.keys())[:drop]:
+            _REPO_META_CACHE.pop(k, None)
+    _REPO_META_CACHE[key] = meta
+    return meta
+
+
+async def _run_commit_page(
+    session: GitHubSession,
+    q: str,
+    page: int,
+) -> Tuple[int, List[Dict], int]:
+    """Run one commit-search page. Returns (status, items, total_count)."""
+    url = f"{GITHUB_API_BASE}/search/commits"
+    params = {
+        "q": q,
+        "sort": "author-date",
+        "order": "desc",
+        "per_page": COMMITS_PER_PAGE,
+        "page": page,
+    }
+    status, body = await session.search_get(url, params=params)
+    if status != 200 or not isinstance(body, dict):
+        return status, [], 0
+    return status, body.get("items", []) or [], _safe_int(body.get("total_count"))
+
+
+async def _yield_records_from_commit_items(
+    session: GitHubSession,
+    items: List[Dict],
+) -> AsyncIterator[IaCRecord]:
+    """Group by repo (to reuse meta fetch), process commits, yield records."""
+    repo_groups: Dict[str, List[Dict]] = {}
+    for item in items:
+        repo_info = item.get("repository", {}) or {}
+        full_name = repo_info.get("full_name", "unknown/unknown")
+        repo_groups.setdefault(full_name, []).append((item, repo_info))
+
+    for full_name, pairs in repo_groups.items():
+        try:
+            owner, repo_name = full_name.split("/", 1)
+        except ValueError:
+            continue
+        try:
+            repo_meta = await _get_repo_meta(session, owner, repo_name)
+            tasks = [
+                _process_commit(session, owner, repo_name, item, repo_meta)
+                for item, _ in pairs
+            ]
+            batch = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in batch:
+                if isinstance(result, Exception):
+                    logger.warning("Commit processing error (skipped): %s", result)
+                    continue
+                for r in result:
+                    yield r
+        except Exception as exc:
+            logger.warning("Repo %s skipped due to error: %s", full_name, exc)
+            continue
 
 
 async def search_commits(
@@ -364,78 +655,93 @@ async def search_commits(
     max_pages: int = MAX_SEARCH_PAGES,
     token: Optional[str] = None,
     progress=None,  # Optional[ProgressTracker]
+    use_date_windows: bool = True,
 ) -> AsyncIterator[IaCRecord]:
     """
-    Async generator that yields IaCRecord objects from GitHub commit search.
-    Resumable: skips queries already marked done in the progress tracker.
+    Async generator yielding IaCRecord from GitHub commit search.
+
+    Resumable at per-(query, window, page) granularity. For each query we
+    iterate date windows walking backward in time from DATE_WINDOW_END to
+    DATE_WINDOW_START in DATE_WINDOW_DAYS-long steps. Each window is an
+    independent unit in the progress tracker — so the same base query can
+    yield 10–50× more unique commits than a single un-windowed search.
 
     Args:
-        queries:  list of search query strings (defaults to COMMIT_SEARCH_QUERIES)
-        max_pages: number of result pages per query
-        token:    GitHub token (overrides config default)
-        progress: ProgressTracker instance for resumability
+        queries:          list of base query strings
+        max_pages:        max pages per window
+        token:            GitHub token override
+        progress:         ProgressTracker (required for resumability)
+        use_date_windows: if False, fall back to single un-windowed search
     """
     queries = queries or COMMIT_SEARCH_QUERIES
 
+    if use_date_windows:
+        windows = _iter_date_windows(DATE_WINDOW_START, DATE_WINDOW_END, DATE_WINDOW_DAYS)
+    else:
+        windows = [("", "")]  # single no-window pass
+
     async with GitHubSession(token=token or GITHUB_TOKEN) as session:
         for query in queries:
-            # Skip already-completed queries (resumability)
             if progress and progress.is_commit_query_done(query):
-                logger.info("Commit search: SKIP (already done) %r", query)
+                logger.info("Commit search: SKIP (query done) %r", query)
                 continue
 
-            logger.info("Commit search: %r", query)
-            for page in range(1, max_pages + 1):
-                url = f"{GITHUB_API_BASE}/search/commits"
-                params = {
-                    "q": query,
-                    "sort": "author-date",
-                    "order": "desc",
-                    "per_page": COMMITS_PER_PAGE,
-                    "page": page,
-                }
-                status, body = await session.search_get(url, params=params)
-                if status != 200 or not isinstance(body, dict):
-                    logger.warning("Search failed (status=%d) for query %r", status, query)
-                    break
+            for win_start, win_end in windows:
+                if win_start:
+                    q = f"{query} committer-date:{win_start}..{win_end}"
+                    window_label = f"{win_start}..{win_end}"
+                else:
+                    q = query
+                    window_label = "all-time"
 
-                items = body.get("items", [])
-                if not items:
-                    break
+                if progress and progress.is_window_done(query, win_start, win_end):
+                    continue
 
-                logger.info("  Query %r — page %d — %d commits", query, page, len(items))
+                start_page = 1
+                if progress:
+                    start_page = progress.window_last_page(query, win_start, win_end) + 1
 
-                # Group by repo to reuse meta fetch
-                repo_groups: Dict[str, List[Dict]] = {}
-                for item in items:
-                    repo_info = item.get("repository", {})
-                    full_name = repo_info.get("full_name", "unknown/unknown")
-                    repo_groups.setdefault(full_name, []).append((item, repo_info))
+                if start_page > max_pages:
+                    if progress:
+                        progress.mark_window_done(query, win_start, win_end)
+                    continue
 
-                for full_name, pairs in repo_groups.items():
-                    try:
-                        owner, repo_name = full_name.split("/", 1)
-                        repo_meta = await _get_repo_meta(session, owner, repo_name)
-                        tasks = [
-                            _process_commit(session, owner, repo_name, item, repo_meta)
-                            for item, _ in pairs
-                        ]
-                        batch_results = await asyncio.gather(*tasks, return_exceptions=True)
-                        for result in batch_results:
-                            if isinstance(result, Exception):
-                                logger.warning("Commit processing error (skipped): %s", result)
-                                continue
-                            for r in result:
-                                yield r
-                    except Exception as exc:
-                        logger.warning("Repo %s skipped due to error: %s", full_name, exc)
+                logger.info("Commit search: %r [%s] pages %d..%d",
+                            query, window_label, start_page, max_pages)
+
+                consecutive_empty = 0
+                for page in range(start_page, max_pages + 1):
+                    status, items, total = await _run_commit_page(session, q, page)
+
+                    if status != 200:
+                        logger.warning("Search failed (status=%d) query=%r window=%s page=%d",
+                                       status, query, window_label, page)
+                        if progress:
+                            progress.increment_errors()
+                        break
+
+                    if not items:
+                        consecutive_empty += 1
+                        if consecutive_empty >= 2:
+                            break
                         continue
+                    consecutive_empty = 0
 
-                total = body.get("total_count", 0)
-                if page * COMMITS_PER_PAGE >= min(total, 1000):
-                    break
+                    logger.info("  %r [%s] page %d — %d commits (total=%d)",
+                                query, window_label, page, len(items), total)
 
-            # Mark query done after all pages fetched
+                    async for r in _yield_records_from_commit_items(session, items):
+                        yield r
+
+                    if progress:
+                        progress.mark_window_page(query, win_start, win_end, page)
+
+                    if page * COMMITS_PER_PAGE >= min(total, 1000):
+                        break
+
+                if progress:
+                    progress.mark_window_done(query, win_start, win_end)
+
             if progress:
                 progress.mark_commit_query_done(query)
 
@@ -462,13 +768,23 @@ async def search_code(
                 logger.info("Code search: SKIP (already done) %r", query)
                 continue
 
-            logger.info("Code search: %r", query)
-            for page in range(1, max_pages + 1):
+            start_page = 1
+            if progress:
+                start_page = progress.code_query_last_page(query) + 1
+            if start_page > max_pages:
+                if progress:
+                    progress.mark_code_query_done(query)
+                continue
+
+            logger.info("Code search: %r (pages %d..%d)", query, start_page, max_pages)
+            for page in range(start_page, max_pages + 1):
                 url = f"{GITHUB_API_BASE}/search/code"
                 params = {"q": query, "per_page": 30, "page": page}
                 status, body = await session.search_get(url, params=params)
                 if status != 200 or not isinstance(body, dict):
                     logger.warning("Code search failed (status=%d)", status)
+                    if progress:
+                        progress.increment_errors()
                     break
 
                 items = body.get("items", [])
@@ -514,6 +830,9 @@ async def search_code(
                 for r in results:
                     if r is not None:
                         yield r
+
+                if progress:
+                    progress.mark_code_query_page(query, page)
 
                 total = body.get("total_count", 0)
                 if page * 30 >= min(total, 1000):

@@ -1,0 +1,402 @@
+% ============================================================
+% Bibliography — Rapport Technique (Rapport 2)
+% Agentic Framework for IaC Misconfiguration Analysis and Remediation
+% Ahmedou Yahye Kheyri — Master MRSI, Faculté des Sciences de Sfax
+% ============================================================
+
+% ---- IaC Security Smells — Taxonomy & Detection ----
+
+@inproceedings{rahman2019seven,
+  author    = {Rahman, Akond and Parnin, Chris and Williams, Laurie},
+  title     = {The Seven Sins: Security Smells in Infrastructure as Code Scripts},
+  booktitle = {Proceedings of the 41st IEEE/ACM International Conference on Software Engineering (ICSE)},
+  pages     = {164--175},
+  year      = {2019},
+  publisher = {IEEE},
+  doi       = {10.1109/ICSE.2019.00033}
+}
+
+@article{rahman2021security,
+  author    = {Rahman, Akond and Rahman, Md Rayhanur and Parnin, Chris and Williams, Laurie},
+  title     = {Security Smells in Ansible and Chef Scripts: A Replication Study},
+  journal   = {ACM Transactions on Software Engineering and Methodology},
+  volume    = {30},
+  number    = {1},
+  pages     = {1--31},
+  year      = {2021},
+  doi       = {10.1145/3408897}
+}
+
+@inproceedings{rahman2020gang,
+  author    = {Rahman, Akond and Farhana, Effat and Parnin, Chris and Williams, Laurie},
+  title     = {Gang of Eight: A Defect Taxonomy for Infrastructure as Code Scripts},
+  booktitle = {Proceedings of the 42nd IEEE/ACM International Conference on Software Engineering (ICSE)},
+  pages     = {752--764},
+  year      = {2020},
+  doi       = {10.1145/3377811.3380409}
+}
+
+@misc{war2025taxonomy,
+  author    = {War, Aicha and Nikiema, Souad L. B. and Samhi, Jordan and Klein, Jacques and Bissyande, Tegawend\'e F.},
+  title     = {Security Smells in Infrastructure as Code Scripts: A Taxonomy Update Beyond the Seven Sins},
+  year      = {2025},
+  eprint    = {2511.12884},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2511.12884}
+}
+
+@misc{war2025detection,
+  author    = {War, Aicha and Rawass, Adnan N. and Kabore, Abdoul K. and Samhi, Jordan and Klein, Jacques and Bissyande, Tegawend\'e F.},
+  title     = {Detection of Security Smells in {IaC} Scripts through Semantics-Aware Code and Language Processing},
+  year      = {2025},
+  eprint    = {2509.18790},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2509.18790}
+}
+
+@misc{war2025vulnerabilities,
+  author    = {War, Aicha and Diallo, Abdoulaye and Habib, Andrew and Klein, Jacques and Bissyande, Tegawend\'e F.},
+  title     = {Vulnerabilities in Infrastructure as Code: What, How Many, and Who?},
+  journal   = {Empirical Software Engineering},
+  volume    = {30},
+  number    = {120},
+  year      = {2025},
+  url       = {https://arxiv.org/abs/2505.01568}
+}
+
+% ---- Specialized IaC Security Tools ----
+
+@inproceedings{saavedra2022glitch,
+  author    = {Saavedra, Nuno and Ferreira, Jo\~{a}o F.},
+  title     = {{GLITCH}: Automated Polyglot Security Smell Detection in Infrastructure as Code},
+  booktitle = {Proceedings of the 37th IEEE/ACM International Conference on Automated Software Engineering (ASE)},
+  pages     = {1--12},
+  year      = {2022},
+  publisher = {IEEE/ACM},
+  doi       = {10.1145/3551349.3556945}
+}
+
+@misc{checkov2024,
+  author       = {Bridgecrew},
+  title        = {Checkov -- Static Analysis for Infrastructure as Code},
+  year         = {2024},
+  howpublished = {\url{https://www.checkov.io}}
+}
+
+@inproceedings{opdebeeck2022gasel,
+  author    = {Opdebeeck, Ruben and Zerouali, Ahmed and De Roover, Coen},
+  title     = {Smelly Variables in Ansible Infrastructure Code: Detection, Prevalence, and Lifetime},
+  booktitle = {Proceedings of the 19th IEEE/ACM International Conference on Mining Software Repositories (MSR)},
+  pages     = {61--72},
+  year      = {2022},
+  doi       = {10.1145/3524842.3527941}
+}
+
+% ---- LLM-Based IaC Security ----
+
+@article{devito2025secllm,
+  author    = {De Vito, Gabriele and Palomba, Fabio and Ferrucci, Filomena},
+  title     = {{SecLLM}: Enhancing Security Smell Detection in {IaC} With Large Language Models},
+  journal   = {IEEE Access},
+  volume    = {13},
+  pages     = {204480--204498},
+  year      = {2025},
+  doi       = {10.1109/ACCESS.2025.3617505}
+}
+
+@misc{li2025gensiac,
+  author    = {Li, Yannick and Grella, Marco and Nahmias, Dov and Engelberg, Gal and Klein, Dan and Guizzardi, Giancarlo and van Ede, Thijs and Continella, Andrea},
+  title     = {{GenSIAC}: Toward Security-Aware Infrastructure-as-Code Generation with Large Language Models},
+  year      = {2025},
+  eprint    = {2505.01568},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2505.01568}
+}
+
+@misc{gnieciak2025llmvsstatic,
+  author    = {Gnieciak, Dawid and Szandala, Tomasz},
+  title     = {Large Language Models versus Static Code Analysis Tools: A Systematic Benchmark for Vulnerability Detection},
+  year      = {2025},
+  eprint    = {2506.18795},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2506.18795}
+}
+
+% ---- Defect Prediction / Metrics ----
+
+@article{dallapalma2022defect,
+  author    = {Dalla Palma, Stefano and Di Nucci, Dario and Palomba, Fabio and Tamburri, Damian A.},
+  title     = {Within-Project Defect Prediction of Infrastructure-as-Code Using Product and Process Metrics},
+  journal   = {IEEE Transactions on Software Engineering},
+  volume    = {48},
+  number    = {6},
+  pages     = {2086--2104},
+  year      = {2022},
+  doi       = {10.1109/TSE.2020.3040028}
+}
+
+% ---- RAG Systems ----
+
+@misc{yao2024crag,
+  author    = {Yao, Shi-Qi and Yu, Dian and Zhao, Jeffrey and Shafran, Izhak and Griffiths, Tom and Cao, Yuan and Narasimhan, Karthik},
+  title     = {{CRAG}: Comprehensive Retrieval Augmented Generation},
+  year      = {2024},
+  eprint    = {2401.15884},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2401.15884}
+}
+
+@inproceedings{asai2023selfrag,
+  author    = {Asai, Akari and Wu, Zeqiu and Wang, Yizhong and Sil, Avirup and Hajishirzi, Hannaneh},
+  title     = {Self-{RAG}: Learning to Retrieve, Generate, and Critique through Self-Reflection},
+  booktitle = {Proceedings of the International Conference on Learning Representations (ICLR)},
+  year      = {2024},
+  eprint    = {2310.11511},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2310.11511}
+}
+
+@inproceedings{jiang2023flare,
+  author    = {Jiang, Zhengbao and Xu, Frank F. and Gao, Luyu and Sun, Zhiqing and Liu, Qian and Dwivedi-Yu, Jane and Yang, Yiming and Callan, Jamie and Neubig, Graham},
+  title     = {Active Retrieval Augmented Generation},
+  booktitle = {Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing (EMNLP)},
+  year      = {2023},
+  eprint    = {2305.06983},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2305.06983}
+}
+
+@inproceedings{es2024ragas,
+  author    = {Es, Shahul and James, Jithin and Espinosa-Anke, Luis and Schockaert, Steven},
+  title     = {{RAGAS}: Automated Evaluation of Retrieval Augmented Generation},
+  booktitle = {Proceedings of the 18th Conference of the European Chapter of the Association for Computational Linguistics (EACL)},
+  year      = {2024},
+  eprint    = {2309.15217},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2309.15217}
+}
+
+% ---- Agentic / Self-Correction Systems ----
+
+@inproceedings{madaan2023selfrefine,
+  author    = {Madaan, Aman and Tandon, Niket and Gupta, Prakhar and Hallinan, Skyler and Gao, Luyu and Wiegreffe, Sarah and Alon, Uri and Dziri, Nouha and Prabhumoye, Shrimai and Yang, Yiming and Gupta, Shashank and Majumder, Bodhisattwa P. and Hermann, Katherine and Welleck, Sean and Yazdanbakhsh, Amir and Clark, Peter},
+  title     = {{SELF-REFINE}: Iterative Refinement with Self-Feedback},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  volume    = {36},
+  year      = {2023},
+  eprint    = {2303.17651},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2303.17651}
+}
+
+@misc{schick2023toolformer,
+  author    = {Schick, Timo and Dwivedi-Yu, Jane and Dess\`{i}, Roberto and Raileanu, Roberta and Lomeli, Maria and Hambro, Eric and Zettlemoyer, Luke and Cancedda, Nicola and Scialom, Thomas},
+  title     = {Toolformer: Language Models Can Teach Themselves to Use Tools},
+  year      = {2023},
+  eprint    = {2302.04761},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2302.04761}
+}
+
+% ---- Patch Generation & Evaluation ----
+
+@misc{lyu2024patcheval,
+  author    = {Lyu, Xiaohu and Wang, Shaohua and Li, Chao and Liu, Chen},
+  title     = {{PatchEval}: A Benchmark for Evaluating {LLMs} on Patching Real-World Vulnerabilities},
+  year      = {2024},
+  eprint    = {2511.11019},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2511.11019}
+}
+
+% ---- Statistical Methods ----
+
+@article{wilcoxon1945,
+  author  = {Wilcoxon, Frank},
+  title   = {Individual Comparisons by Ranking Methods},
+  journal = {Biometrics Bulletin},
+  volume  = {1},
+  number  = {6},
+  pages   = {80--83},
+  year    = {1945},
+  doi     = {10.2307/3001968}
+}
+
+@article{holm1979,
+  author  = {Holm, Sture},
+  title   = {A Simple Sequentially Rejective Multiple Test Procedure},
+  journal = {Scandinavian Journal of Statistics},
+  volume  = {6},
+  number  = {2},
+  pages   = {65--70},
+  year    = {1979}
+}
+
+@book{fleiss2013statistical,
+  author    = {Fleiss, Joseph L. and Levin, Bruce and Paik, Myunghee Cho},
+  title     = {Statistical Methods for Rates and Proportions},
+  edition   = {3rd},
+  publisher = {Wiley},
+  address   = {Hoboken, NJ, USA},
+  year      = {2013}
+}
+
+@article{landis1977kappa,
+  author  = {Landis, J. Richard and Koch, Gary G.},
+  title   = {The Measurement of Observer Agreement for Categorical Data},
+  journal = {Biometrics},
+  volume  = {33},
+  number  = {1},
+  pages   = {159--174},
+  year    = {1977},
+  doi     = {10.2307/2529310}
+}
+
+@article{cohen1960kappa,
+  author  = {Cohen, Jacob},
+  title   = {A Coefficient of Agreement for Nominal Scales},
+  journal = {Educational and Psychological Measurement},
+  volume  = {20},
+  number  = {1},
+  pages   = {37--46},
+  year    = {1960},
+  doi     = {10.1177/001316446002000104}
+}
+
+% ---- LLMs for Code ----
+
+@misc{chen2021codex,
+  author    = {Chen, Mark and Tworek, Jerry and Jun, Heewoo and Yuan, Qiming and Pinto, Henrique Ponde de Oliveira and Kaplan, Jared and Edwards, Harri and Burda, Yuri and Joseph, Nicholas and Brockman, Greg and Ray, Alex and Puri, Ramesh and Krueger, Gretchen and Petrov, Michael and Khlaaf, Heidy and Sastry, Girish and Mishkin, Pamela and Chan, Brooke and Gray, Scott and Ryder, Nick and Pavlov, Mikhail and Power, Alethea and Kaiser, Lukasz and Bavarian, Mohammad and Winter, Clemens and Tillet, Philippe and Such, Felipe Petroski and Cummings, Dave and Peng, Mathew and Tezak, Jakub and others},
+  title     = {Evaluating Large Language Models Trained on Code},
+  year      = {2021},
+  eprint    = {2107.03374},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2107.03374}
+}
+
+@article{ouyang2025nondeterminism,
+  author  = {Ouyang, Shuyin and Zhang, Jie M. and Harman, Mark and Wang, Meng},
+  title   = {An Empirical Study of the Non-Determinism of {ChatGPT} in Code Generation},
+  journal = {ACM Transactions on Software Engineering and Methodology},
+  volume  = {34},
+  number  = {2},
+  pages   = {1--28},
+  year    = {2025},
+  doi     = {10.1145/3697010}
+}
+
+% ---- Information Retrieval ----
+
+@book{manning2008ir,
+  author    = {Manning, Christopher D. and Raghavan, Prabhakar and Sch\"{u}tze, Hinrich},
+  title     = {Introduction to Information Retrieval},
+  publisher = {Cambridge University Press},
+  address   = {Cambridge, UK},
+  year      = {2008},
+  url       = {https://nlp.stanford.edu/IR-book/}
+}
+
+% ---- Thesis Subject ----
+
+@misc{sujet2026,
+  author       = {Bezine, Hala},
+  title        = {Proposition d'un Sujet de Master{e} {MRSI}: Framework Agentique
+                  pour l'analyse et la rem\'ediation des Misconfigurations {IaC}},
+  institution  = {Facult\'e des Sciences de Sfax, Universit\'e de Sfax},
+  year         = {2026},
+  note         = {Thesis subject proposal, date limite de d\'ep\^ot: 28 janvier 2026}
+}
+
+% ---- Replication / Validation ----
+
+@inproceedings{reis2022leveraging,
+  author    = {Reis, Sofia and Abreu, Rui and d'Amorim, Marcelo and Fortunato, Diogo},
+  title     = {Leveraging Practitioners' Feedback to Improve a Security Linter},
+  booktitle = {Proceedings of the 37th IEEE/ACM International Conference on Automated Software Engineering (ASE)},
+  pages     = {1--12},
+  year      = {2022},
+  doi       = {10.1145/3551349.3561161}
+}
+
+@misc{oliveira2025defect,
+  author    = {Oliveira, William and Paiva, Filipe and Pereira, Tiago E. and Brunet, Johann},
+  title     = {A Defect Taxonomy for Infrastructure as Code: A Replication Study},
+  year      = {2025},
+  eprint    = {2509.18761},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2509.18761}
+}
+
+% ============================================================
+% Added for Rapport-Critique (benchmark landscape, April 2026)
+% ============================================================
+
+% ---- IaC Generation & Mutation Benchmarks ----
+
+@inproceedings{kon2024iaceval,
+  author    = {Kon, Patrick Tser Jern and Liu, Jiachen and Qiu, Yiming and Fan, Weijun and He, Ting and Lin, Lei and Zhang, Haoran and Park, Owen and Elengikal, George and Kang, Yuxin and Chen, Ang and Chowdhury, Mosharaf and Lee, Myungjin and Wang, Xinyu},
+  title     = {{IaC-Eval}: A Code Generation Benchmark for Cloud Infrastructure-as-Code Programs},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  volume    = {37},
+  year      = {2024},
+  url       = {https://openreview.net/forum?id=7TCK0aBL1C}
+}
+
+@misc{multi2025iaceval,
+  author    = {Anonymous authors},
+  title     = {Multi-{IaC-Eval}: Benchmarking Cloud Infrastructure as Code Across Multiple Formats},
+  year      = {2025},
+  eprint    = {2509.05303},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2509.05303}
+}
+
+% ---- Patch / Vulnerability Repair Benchmarks ----
+
+@misc{autopatchbench2025,
+  author       = {{Meta Platforms, Inc.}},
+  title        = {{AutoPatchBench}: A Benchmark for AI-Powered Security Fixes},
+  year         = {2025},
+  howpublished = {\url{https://engineering.fb.com/2025/04/29/ai-research/autopatchbench-benchmark-ai-powered-security-fixes/}},
+  note         = {Engineering at Meta blog, 29 April 2025}
+}
+
+@misc{secbench2025,
+  author    = {Anonymous authors},
+  title     = {{SEC-bench}: Automated Benchmarking of {LLM} Agents on Real-World Software Security Vulnerabilities},
+  year      = {2025},
+  eprint    = {2506.11791},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2506.11791}
+}
+
+@misc{secrepobench2025,
+  author    = {Anonymous authors},
+  title     = {{SecRepoBench}: Benchmarking {LLMs} for Secure Code Generation in Real-World Repositories},
+  year      = {2025},
+  eprint    = {2504.21205},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2504.21205}
+}
+
+% ---- IaC Smell Detection — 2026 Semantic Approach ----
+
+@misc{intellisa2026,
+  author    = {Anonymous authors},
+  title     = {{IntelliSA}: An Intelligent Static Analyzer for {IaC} Security Smell Detection Using Symbolic Rules and Neural Inference},
+  year      = {2026},
+  eprint    = {2601.14595},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2601.14595}
+}
+
+% ---- Agentic RAG Survey (2025) ----
+
+@misc{agenticrag2025survey,
+  author    = {Anonymous authors},
+  title     = {Towards Agentic {RAG} with Deep Reasoning: A Survey of {RAG}-Reasoning Systems in {LLMs}},
+  year      = {2025},
+  eprint    = {2507.09477},
+  archivePrefix = {arXiv},
+  url       = {https://arxiv.org/abs/2507.09477}
+}

@@ -190,11 +190,162 @@ _RAW_PATTERNS: List[Tuple[str, List[str]]] = [
         r'SECRET\s*=\s*["\'][^"\'$\{\}]{6,}["\']',
     ]),
     ("overly_permissive_iam", [
-        r'"Action"\s*:\s*["\*"]',
-        r'"Resource"\s*:\s*["\*"]',
-        r'actions\s*=\s*\["[*]"\]',
-        r'resources\s*=\s*\["[*]"\]',
+        r'"Action"\s*:\s*"\*"',
+        r'"Action"\s*:\s*\[\s*"\*"\s*\]',
+        r'"Resource"\s*:\s*"\*"',
+        r'"Resource"\s*:\s*\[\s*"\*"\s*\]',
+        r'actions\s*=\s*\[\s*"\*"\s*\]',
+        r'resources\s*=\s*\[\s*"\*"\s*\]',
         r'effect\s*=\s*["\']Allow["\'].*actions.*\*',
+        r'apiGroups\s*:\s*\[\s*["\']?\*["\']?\s*\]',
+        r'verbs\s*:\s*\[\s*["\']?\*["\']?\s*\]',
+    ]),
+    # --- new smells ----------------------------------------------------------
+    ("cors_wildcard", [
+        r'allowed_origins\s*=\s*\[\s*["\']\*["\']\s*\]',
+        r'"AllowedOrigins"\s*:\s*\[\s*"\*"\s*\]',
+        r'allowedOrigins\s*:\s*\[\s*["\']?\*["\']?\s*\]',
+        r'Access-Control-Allow-Origin[:=]\s*["\']?\*',
+    ]),
+    ("weak_hash", [
+        r'\b(md5|sha1)\s*\(',
+        r'["\'](md5|sha1)["\']',
+        r'digest\s*[:=]\s*["\']?(md5|sha1)\b',
+        r'signature_algorithm\s*=\s*["\']?(md5|sha1)\w*["\']?',
+    ]),
+    ("plaintext_protocol", [
+        r'https?://[^/\s"\']*:[^/\s"\']+@',  # URI creds (also matched by uri_credentials)
+        r'protocol\s*=\s*["\']HTTP["\']',
+        r'"Protocol"\s*:\s*"HTTP"',
+        r'use_https\s*=\s*false',
+        r'enforce_ssl\s*=\s*false',
+        r'force_ssl\s*=\s*false',
+        r'insecure\s*[:=]\s*true',
+    ]),
+    ("deletion_protection_disabled", [
+        r'deletion_protection\s*=\s*false',
+        r'enable_deletion_protection\s*=\s*false',
+        r'"DeletionProtection"\s*:\s*false',
+    ]),
+    ("backup_disabled", [
+        r'backup_retention_period\s*=\s*0\b',
+        r'backup_retention_days\s*=\s*0\b',
+        r'"BackupRetentionPeriod"\s*:\s*0\b',
+        r'point_in_time_recovery\s*\{[^}]*enabled\s*=\s*false',
+        r'skip_final_snapshot\s*=\s*true',
+    ]),
+    ("no_mfa", [
+        r'mfa_delete\s*=\s*false',
+        r'"MFADelete"\s*:\s*"Disabled"',
+        r'require_mfa\s*=\s*false',
+    ]),
+    ("image_pull_policy_not_always", [
+        r'imagePullPolicy\s*:\s*(IfNotPresent|Never)\b',
+    ]),
+    # readiness/liveness "absence" checks are unreliable and catastrophic with
+    # regex on large files. Deliberately delegated to Checkov (CKV_K8S_8/9).
+    ("read_only_fs_disabled", [
+        r'readOnlyRootFilesystem\s*:\s*false',
+    ]),
+    ("service_account_token_auto_mount", [
+        r'automountServiceAccountToken\s*:\s*true',
+    ]),
+    ("uri_credentials", [
+        r'(postgres|postgresql|mysql|mongodb|redis|amqp|jdbc:[a-z]+)://[^/\s"\']+:[^/\s"\']+@',
+        r'smtp://[^/\s"\']+:[^/\s"\']+@',
+        r'ftp://[^/\s"\']+:[^/\s"\']+@',
+    ]),
+    ("latest_image_tag", [
+        r'image\s*:\s*\S+:latest\b',
+        r'FROM\s+\S+:latest\b',
+    ]),
+    # "missing HEALTHCHECK" is delegated to Checkov (CKV_DOCKER_2); whole-file
+    # negative regex is too fragile to keep here.
+    ("apt_no_install_recommends", [
+        r'apt-get\s+install\s+(?!.*--no-install-recommends)',
+    ]),
+    ("host_namespace_shared", [
+        r'hostNetwork\s*:\s*true',
+        r'hostPID\s*:\s*true',
+        r'hostIPC\s*:\s*true',
+    ]),
+    ("capabilities_added", [
+        # Line-based patterns, no catastrophic backtracking
+        r'^\s+-\s+(ALL|SYS_ADMIN|NET_ADMIN|NET_RAW|SYS_PTRACE|SYS_MODULE)\s*$',
+        r'"Capabilities"\s*:.*?"(ALL|SYS_ADMIN|NET_ADMIN|NET_RAW)"',
+    ]),
+    ("imds_v1", [
+        r'http_tokens\s*=\s*["\']optional["\']',
+        r'"HttpTokens"\s*:\s*"optional"',
+    ]),
+    ("ssh_port_open_world", [
+        r'from_port\s*=\s*22\b[^}]*cidr_blocks\s*=\s*\[\s*"0\.0\.0\.0/0"',
+        r'"FromPort"\s*:\s*22\b[\s\S]{0,400}"CidrIp"\s*:\s*"0\.0\.0\.0/0"',
+    ]),
+    ("rdp_port_open_world", [
+        r'from_port\s*=\s*3389\b[^}]*cidr_blocks\s*=\s*\[\s*"0\.0\.0\.0/0"',
+        r'"FromPort"\s*:\s*3389\b[\s\S]{0,400}"CidrIp"\s*:\s*"0\.0\.0\.0/0"',
+    ]),
+    ("validate_certs_disabled", [
+        r'validate_certs\s*:\s*(no|false)',
+        r'verify\s*=\s*False\b',
+        r'ssl_verify\s*=\s*false',
+        r'insecure_skip_verify\s*=\s*true',
+    ]),
+    ("become_root", [
+        r'become\s*:\s*(yes|true)\b[\s\S]{0,200}become_user\s*:\s*root',
+    ]),
+    ("no_log_disabled", [
+        r'no_log\s*:\s*(no|false)\b',
+    ]),
+    # Expanded insecure_tls coverage
+    ("insecure_tls", [
+        r'ssl_policy\s*=\s*["\']ELBSecurityPolicy-(2015|2016)',
+        r'minimum_protocol_version\s*=\s*["\']TLSv1(\.1)?["\']',
+        r'tls_version\s*=\s*["\']TLS1_[01]["\']',
+        r'min_tls_version\s*=\s*["\']TLS_1_[01]["\']',
+        r'minimumTlsVersion\s*[:=]\s*["\']?(1\.0|1\.1|TLS1_[01])',
+        r'sslProtocols?\s*[:=].*(SSLv[23]|TLSv1\.0|TLSv1\.1)',
+    ]),
+    # Expanded missing_encryption
+    ("missing_encryption", [
+        r'encrypted\s*=\s*false',
+        r'enable_encryption\s*=\s*false',
+        r'storage_encrypted\s*=\s*false',
+        r'kms_key_id\s*=\s*["\']["\']',
+        r'"Encrypted"\s*:\s*false',
+        r'server_side_encryption_configuration\s*\{[^}]*rule[^}]*sse_algorithm\s*=\s*["\']AES256["\']\s*\}',  # missing kms
+        r'at_rest_encryption_enabled\s*=\s*false',
+        r'transit_encryption_enabled\s*=\s*false',
+    ]),
+    # Expanded hardcoded_credential
+    ("hardcoded_credential", [
+        r'access_key\s*=\s*["\'][A-Z0-9]{16,}["\']',
+        r'secret_key\s*=\s*["\'][^"\'$\{\}\s]{16,}["\']',
+        r'aws_access_key_id\s*=\s*["\']AKIA[A-Z0-9]{16}["\']',
+        r'aws_secret_access_key\s*=\s*["\'][^"\'$]{30,}["\']',
+        r'api_key\s*=\s*["\'][^"\'$\{\}\s]{16,}["\']',
+        r'token\s*=\s*["\'][A-Za-z0-9_\-]{20,}["\']',
+        r'bearer\s+[A-Za-z0-9_\-\.]{20,}',
+        r'ghp_[A-Za-z0-9]{30,}',
+        r'xox[baprs]-[A-Za-z0-9\-]{10,}',
+        r'-----BEGIN\s+(RSA|OPENSSH|EC|PGP|DSA|PRIVATE)\s+PRIVATE\s+KEY-----',
+    ]),
+    # Expanded logging_disabled
+    ("logging_disabled", [
+        r'logging\s*=\s*false',
+        r'enable_logging\s*=\s*false',
+        r'"LoggingEnabled"\s*:\s*false',
+        r'enable_cloudwatch_logs_exports\s*=\s*\[\s*\]',
+        r'access_logs\s*\{[^}]*enabled\s*=\s*false',
+        r'audit_logs\s*\{[^}]*enabled\s*=\s*false',
+        r'flow_log_config\s*\{[^}]*enabled\s*=\s*false',
+    ]),
+    # Keep only the cheap/reliable empty-block patterns; "no limits: key"
+    # style absence-checks are delegated to Checkov (CKV_K8S_11/13).
+    ("missing_resource_limits", [
+        r'resources\s*:\s*\{\s*\}',
+        r'^\s*resources\s*:\s*$',
     ]),
 ]
 

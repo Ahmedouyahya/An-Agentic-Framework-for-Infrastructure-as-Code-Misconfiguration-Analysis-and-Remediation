@@ -1,6 +1,8 @@
 """
 Quick test: build the RAG knowledge base from the taxonomy
-and run a sample query, then test the API connection.
+and run a sample query, then test the LLM backend connection.
+
+Supports all backends: Anthropic, OpenRouter, Ollama (local), OpenAI.
 
 Usage:
     .venv/bin/python scripts/test_rag_and_api.py
@@ -8,7 +10,6 @@ Usage:
 
 import os
 import sys
-import json
 from pathlib import Path
 
 # Load .env
@@ -27,7 +28,7 @@ from knowledge.knowledge_base import KnowledgeBase
 
 kb = KnowledgeBase(persist_dir=str(Path(__file__).parent.parent / "chroma_db"))
 kb.build()
-print("✓ Knowledge base built successfully\n")
+print("OK — Knowledge base built successfully\n")
 
 # ─── 2. Test a retrieval query ───────────────────────────────────────────────
 
@@ -45,45 +46,102 @@ smells = [
 ]
 context = retriever.retrieve(smells, iac_tool="terraform")
 print("Query: Terraform — hardcoded credential + overly permissive CIDR")
-print("─" * 40)
+print("-" * 40)
 print(context[:800], "...\n")
 
-# ─── 3. Test API connection ───────────────────────────────────────────────────
+# ─── 3. Test LLM backend connection ─────────────────────────────────────────
 
 print("=" * 60)
-print("STEP 3 — Testing OpenCode API connection")
+print("STEP 3 — Testing LLM backend connection")
 print("=" * 60)
 
-api_key = os.getenv("OPENCODE_API_KEY")
-api_base = os.getenv("OPENCODE_API_BASE", "https://api.openai.com/v1")
+# Detect backend (same priority as fix_generator.py)
+if os.getenv("ANTHROPIC_API_KEY"):
+    backend = "anthropic"
+    print(f"Backend: Anthropic (ANTHROPIC_API_KEY set)")
+    try:
+        import anthropic
+        client = anthropic.Anthropic()
+        response = client.messages.create(
+            model="claude-sonnet-4-5-20241022",
+            max_tokens=20,
+            messages=[{"role": "user", "content": "Say 'IaC security test OK' and nothing else."}],
+        )
+        print(f"OK — Response: {response.content[0].text}")
+    except Exception as e:
+        print(f"FAIL — {e}")
 
-if not api_key:
-    print("✗ OPENCODE_API_KEY not set in .env")
-    sys.exit(1)
+elif os.getenv("OPENROUTER_API_KEY"):
+    backend = "openrouter"
+    print(f"Backend: OpenRouter (OPENROUTER_API_KEY set)")
+    try:
+        from openai import OpenAI
+        client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=os.environ["OPENROUTER_API_KEY"],
+        )
+        response = client.chat.completions.create(
+            model="meta-llama/llama-3.1-8b-instruct:free",
+            messages=[{"role": "user", "content": "Say 'IaC security test OK' and nothing else."}],
+            max_tokens=20,
+        )
+        print(f"OK — Response: {response.choices[0].message.content}")
+    except Exception as e:
+        print(f"FAIL — {e}")
 
-try:
-    from openai import OpenAI
+elif os.getenv("OLLAMA_MODEL") or True:  # Default to Ollama
+    backend = "ollama"
+    model = os.getenv("OLLAMA_MODEL", "gemma3:4b")
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+    print(f"Backend: Ollama (local) — model={model} base_url={base_url}")
 
-    client = OpenAI(api_key=api_key, base_url=api_base)
+    # Check if Ollama is running
+    try:
+        from openai import OpenAI
+        client = OpenAI(base_url=base_url, api_key="ollama")
+        models = client.models.list()
+        available = [m.id for m in models.data]
+        print(f"  Available models: {available[:10]}")
 
-    # List available models to verify connection
-    models = client.models.list()
-    model_names = [m.id for m in models.data][:5]
-    print(f"✓ Connected to API at: {api_base}")
-    print(f"  Available models (first 5): {model_names}\n")
+        if model not in available:
+            print(f"\n  Model '{model}' not found. Pull it with:")
+            print(f"    ollama pull {model}")
+            print(f"\n  Recommended models for your hardware (12 GB RAM, no GPU):")
+            print(f"    ollama pull gemma3:4b      # 2.5 GB, good quality")
+            print(f"    ollama pull qwen2.5-coder:3b  # 2 GB, code-focused")
+            print(f"    ollama pull phi4-mini       # 2.4 GB, fast")
+        else:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": "Say 'IaC security test OK' and nothing else."}],
+                max_tokens=20,
+            )
+            print(f"OK — Response: {response.choices[0].message.content}")
+    except Exception as e:
+        print(f"FAIL — Cannot connect to Ollama at {base_url}")
+        print(f"  Error: {e}")
+        print(f"\n  To set up Ollama:")
+        print(f"    1. Install: curl -fsSL https://ollama.com/install.sh | sh")
+        print(f"    2. Start:   ollama serve")
+        print(f"    3. Pull:    ollama pull gemma3:4b")
+        print(f"    4. Re-run this test")
 
-    # Test a small completion
-    response = client.chat.completions.create(
-        model=model_names[0] if model_names else "gpt-4o-mini",
-        messages=[
-            {"role": "user", "content": "Say 'IaC security test OK' and nothing else."}
-        ],
-        max_tokens=20,
-    )
-    print(f"✓ API response: {response.choices[0].message.content}")
+elif os.getenv("OPENAI_API_KEY"):
+    backend = "openai"
+    print(f"Backend: OpenAI (OPENAI_API_KEY set)")
+    try:
+        from openai import OpenAI
+        client = OpenAI()
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "Say 'IaC security test OK' and nothing else."}],
+            max_tokens=20,
+        )
+        print(f"OK — Response: {response.choices[0].message.content}")
+    except Exception as e:
+        print(f"FAIL — {e}")
 
-except Exception as e:
-    print(f"✗ API connection failed: {e}")
-    print()
-    print("  → If this is not an OpenAI-compatible API, set OPENCODE_API_BASE in .env")
-    print("  → For Ollama (local), use: OPENCODE_API_BASE=http://localhost:11434/v1")
+print()
+print("=" * 60)
+print("All tests complete.")
+print("=" * 60)

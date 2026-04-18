@@ -83,6 +83,11 @@ class IaCRecord:
     scraped_at: str = field(default_factory=_utcnow)
     notes: Optional[str] = None           # any free-text notes
 
+    # --- Quality tracking (v2) ---
+    code_before_quality: Optional[str] = None  # api | exact | partial | heuristic | unavailable
+    tier: Optional[str] = None                 # A (gold) | B (silver) | C (bronze) | D (weak)
+    validated_smells: List[Dict[str, Any]] = field(default_factory=list)  # scanner ground truth
+
     # ------------------------------------------------------------------
 
     def compute_hash(self) -> str:
