@@ -241,8 +241,9 @@ scraper; (ii) the data preparation pipeline that extracts a 4{,}050-record
 \emph{gold subset} used in this first run (roughly 38~\% of the available
 scanner-validated records, sharply filtered for length and non-noop changes);
 (iii) the \gls{qlora} training methodology applied to
-\texttt{google/gemma-2-2b-it} on a single Kaggle T4 GPU, where we observed a
-training loss of 0.528 and an evaluation loss of 0.467 in 1~h~47~min for one
+\texttt{google/gemma-2-2b-it} on Kaggle's T4~x2 tier (one of the two
+available T4 GPUs used by our single-process script), where we observed
+a training loss of 0.528 and an evaluation loss of 0.467 in 1~h~47~min for one
 epoch; (iv) a qualitative inspection of the resulting adapter on only three
 held-out test samples; and (v) the integration path that remains to be
 executed --- adapter merging, \gls{gguf} conversion, and local Ollama
@@ -341,8 +342,9 @@ first iteration:
          \texttt{03\_inference.py}) under
          \texttt{Code/training/trainning/}.
   \item One \gls{qlora} fine-tuning run on
-        \texttt{google/gemma-2-2b-it}, executed on Kaggle's free T4 tier
-        under the constraints imposed by that environment (single GPU,
+        \texttt{google/gemma-2-2b-it}, executed on Kaggle's free
+        T4~x2 tier under the constraints imposed by that environment
+        (single-process script using one of the two T4 devices,
         9-hour session limit, gated model access).
   \item The observed training metrics from that single run (loss curves,
         runtime, adapter size) and a qualitative look at only three
@@ -741,7 +743,10 @@ The experiment was executed on Kaggle's free GPU tier with the following
 accelerator and runtime settings:
 
 \begin{itemize}
-  \item Accelerator: NVIDIA T4 (one device; 16~GB \gls{vram}).
+  \item Accelerator: Kaggle \emph{T4~x2} tier --- two NVIDIA T4 devices
+        (16~GB \gls{vram} each). Our training script is single-process and
+        therefore uses only one of the two T4s; the second device is
+        available but unused in this run.
   \item CUDA version: 12.8.
   \item Python: 3.12.
   \item Session limit: 9 hours per notebook.
@@ -1284,7 +1289,8 @@ carried out within the agentic \gls{iac} security framework proposed in
 Rapport~2. From a 31{,}748-record scanner-validated scrape we extracted
 a 4{,}050-record subset; we then ran one pass of \gls{qlora} fine-tuning
 on \texttt{google/gemma-2-2b-it} --- a small 2~B-parameter base model
---- on Kaggle's free T4 tier, observing a training loss of 0.528 and an
+--- on Kaggle's free T4~x2 tier (a single device was used by the
+training script), observing a training loss of 0.528 and an
 evaluation loss of 0.467 in 1~h~47~min. A 25~MB adapter was produced
 and manually inspected on three test samples.
 
