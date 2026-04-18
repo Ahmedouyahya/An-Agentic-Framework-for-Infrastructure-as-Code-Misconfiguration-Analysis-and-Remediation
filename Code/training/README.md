@@ -23,3 +23,8 @@ python training/trainning/01_prepare_dataset.py
 The ~322 MB raw dataset is NOT copied here — it lives in `scraping/output/`
 and the prep script pulls only the scanner-validated subset (~10k records,
 a few MB).
+
+The full dataset is published separately at
+**https://github.com/Ahmedouyahya/iac-security-dataset** — download
+`dataset.jsonl` from there into `Code/scraping/output/dataset_v1_validated.jsonl`
+before running `01_prepare_dataset.py`.

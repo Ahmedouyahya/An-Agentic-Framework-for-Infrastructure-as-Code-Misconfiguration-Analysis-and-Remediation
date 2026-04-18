@@ -617,6 +617,11 @@ The dataset contains 16 insecure IaC files with 79 annotated security smells.
 - **Configuration Data** (10 entries) — missing configs, deprecated settings
 - **Dependency** (6 entries) — unpinned images, supply chain risks
 
+> This `dataset/` folder is the hand-crafted evaluation benchmark. The
+> large-scale scraped corpus used for fine-tuning (33,667 records) is produced
+> by `scraping/` and published separately at
+> **https://github.com/Ahmedouyahya/iac-security-dataset**.
+
 ---
 
 ## 12. Troubleshooting

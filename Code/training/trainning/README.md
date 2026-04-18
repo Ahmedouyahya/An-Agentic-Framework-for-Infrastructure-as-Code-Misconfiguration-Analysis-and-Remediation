@@ -19,6 +19,13 @@ using the v1 scraped dataset (31,748 records → ~10k gold subset).
 
 ### 1. Prepare data (once, on your laptop)
 
+The full v1 dataset (~322 MB, 31,748 records) is published at
+**https://github.com/Ahmedouyahya/iac-security-dataset**. Download
+`dataset.jsonl` from there and place it at
+`Code/scraping/output/dataset_v1_validated.jsonl`.
+
+Then:
+
 ```bash
 cd Code
 python training/trainning/01_prepare_dataset.py
