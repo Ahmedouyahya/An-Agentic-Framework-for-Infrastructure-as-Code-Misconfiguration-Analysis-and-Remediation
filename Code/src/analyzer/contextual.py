@@ -75,7 +75,9 @@ class ContextualAnalyzer:
         }
 
     def _detect_smells_checkov(self, path: Path, tool: str) -> list[dict]:
-        """Run Checkov and parse its JSON output into a normalized smell list."""
+        """Run Checkov and combine its results with local heuristic smells."""
+        content = path.read_text(errors="replace")
+        checkov_smells: list[dict] = []
         try:
             result = subprocess.run(
                 ["checkov", "--file", str(path), "--output", "json", "--quiet"],
@@ -84,22 +86,42 @@ class ContextualAnalyzer:
             data = json.loads(result.stdout or "{}")
         except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError) as exc:
             logger.warning("Checkov unavailable (%s), falling back to heuristics.", exc)
-            return self._heuristic_smells(path.read_text(errors="replace"), tool)
+            return self._heuristic_smells(content, tool)
 
         # Checkov 3.2+ returns a list when multiple scanners apply (e.g. terraform + secrets)
         entries = data if isinstance(data, list) else [data]
-        smells = []
         for entry in entries:
             for item in entry.get("results", {}).get("failed_checks", []):
-                smells.append({
+                checkov_smells.append({
                     "checker_id": item.get("check_id", ""),
                     "type": item.get("check_id", "UNKNOWN"),
-                    "description": item.get("check_result", {}).get("result", ""),
+                    "description": item.get("check_name", "")
+                    or item.get("check_result", {}).get("result", ""),
                     "cwe": "",          # populated later by knowledge retriever
                     "line": item.get("file_line_range", [0])[0],
                     "resource": item.get("resource", ""),
                 })
-        return smells
+
+        heuristic_smells = self._heuristic_smells(content, tool)
+        return self._dedupe_smells(checkov_smells + heuristic_smells)
+
+    @staticmethod
+    def _dedupe_smells(smells: list[dict]) -> list[dict]:
+        """Remove exact duplicate findings while preserving scanner + heuristic coverage."""
+        seen = set()
+        unique = []
+        for smell in smells:
+            key = (
+                smell.get("checker_id", ""),
+                smell.get("type", ""),
+                smell.get("line", 0),
+                smell.get("resource", ""),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(smell)
+        return unique
 
     def _heuristic_smells(self, content: str, tool: str) -> list[dict]:
         """Fallback: simple regex-based smell detection."""
@@ -107,12 +129,26 @@ class ContextualAnalyzer:
         patterns = [
             (r'password\s*=\s*"[^"]+"',        "hardcoded_secret",       "CWE-259"),
             (r'secret\s*=\s*"[^"]+"',          "hardcoded_secret",       "CWE-259"),
+            (r'(api[_-]?key|token|secret|password)\s*[:=]\s*["\'][^"\']+["\']',
+                                                   "hardcoded_secret",       "CWE-259"),
             (r'access_key\s*=\s*"[^"]+"',      "hardcoded_credential",   "CWE-798"),
             (r'0\.0\.0\.0/0',                  "overly_permissive_cidr", "CWE-732"),
             (r'privileged\s*:\s*true',          "privileged_container",   "CWE-250"),
+            (r'allowPrivilegeEscalation\s*:\s*true',
+                                                   "privilege_escalation_allowed", "CWE-250"),
             (r'runAsRoot\s*:\s*true',           "run_as_root",            "CWE-250"),
-            (r'validate_certs\s*:\s*no',        "tls_disabled",           "CWE-295"),
+            (r'runAsNonRoot\s*:\s*false',        "run_as_root",            "CWE-250"),
+            (r'validate_certs\s*:\s*(no|false)', "tls_disabled",           "CWE-295"),
             (r'mode\s*[=:]\s*[\'"]?0?777',     "world_writable",         "CWE-732"),
+            (r'PasswordAuthentication\s+yes',    "ssh_password_auth_enabled", "CWE-287"),
+            (r'NOPASSWD',                        "passwordless_sudo",      "CWE-250"),
+            (r'curl\b.*\|\s*(sh|bash)',          "remote_script_without_integrity", "CWE-494"),
+            (r'wget\b.*\|\s*(sh|bash)',          "remote_script_without_integrity", "CWE-494"),
+            (r'chmod\s+(u\+s|g\+s|[0-7]*[46][0-7]{3})',
+                                                   "setuid_setgid_binary",  "CWE-269"),
+            (r'^\s*FROM\s+\S+:latest\b',         "unpinned_base_image",    "CWE-829"),
+            (r'readOnlyRootFilesystem\s*:\s*false',
+                                                   "writable_root_filesystem", "CWE-732"),
         ]
         for i, line in enumerate(content.splitlines(), 1):
             for pattern, smell_type, cwe in patterns:

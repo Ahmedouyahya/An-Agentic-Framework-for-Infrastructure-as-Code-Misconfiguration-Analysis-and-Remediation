@@ -3,7 +3,7 @@
 Evaluation Script — Agentic IaC Security Framework
 ====================================================
 Computes the revised 8-metric set across 4 configurations on either the
-8-file sanity suite (dataset/metadata.json) or the 33k corpus test split.
+16-file labelled benchmark (dataset/metadata.json) or the 33k corpus test split.
 
 Metrics (per Rapport 4):
   Detection:    Precision, Recall, F1, Macro-F1
@@ -26,11 +26,12 @@ Usage:
     # Config D — + RAG + Checkov + KICS + retry loop
     python3 scripts/evaluate.py --config D --model "gemma3:4b"
 
-    # Use 33k corpus test split instead of 8-file suite
+    # Use 33k corpus test split instead of 16-file benchmark
     python3 scripts/evaluate.py --config D --dataset path/to/test.jsonl
 
 LLM backends (detected from environment variables, in priority order):
     ANTHROPIC_API_KEY   → Anthropic Claude
+    DEEPSEEK_API_KEY    → DeepSeek
     OPENROUTER_API_KEY  → OpenRouter
     OLLAMA_MODEL        → Local Ollama (e.g. gemma3:4b)
     OPENAI_API_KEY      → OpenAI
@@ -65,7 +66,7 @@ TAXONOMY_PATH = DATASET_ROOT / "taxonomy" / "smells_taxonomy.json"
 # ===========================================================================
 
 def load_metadata() -> dict:
-    """Load the 8-file sanity suite metadata."""
+    """Load the 16-file labelled benchmark metadata."""
     with METADATA_PATH.open() as f:
         return json.load(f)
 
@@ -462,7 +463,7 @@ def run_config_a() -> None:
 # ===========================================================================
 
 def run_pipeline_evaluation(config: str, model: str | None = None) -> None:
-    """Run Config B, C, or D on the 8-file sanity suite."""
+    """Run Config B, C, or D on the 16-file labelled benchmark."""
     sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
     from analyzer.contextual import ContextualAnalyzer
@@ -619,7 +620,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dataset", default=None,
         help="Path to JSONL dataset (e.g. 33k corpus test split). "
-             "If not set, uses the 8-file sanity suite.",
+             "If not set, uses the 16-file labelled benchmark.",
     )
     args = parser.parse_args()
 

@@ -76,6 +76,35 @@ class TestHeuristicSmellDetection:
         f.write_text("apiVersion: v1\nkind: Pod\nspec:\n  containers:\n  - name: app\n    securityContext:\n      privileged: true\n")
         result = analyzer.analyze(f)
         assert result["tool"] == "kubernetes"
+        assert any(s["type"] == "privileged_container" for s in result["smells"])
+
+    def test_ssh_password_auth_detected_even_when_checkov_runs(self, analyzer, tmp_path):
+        f = tmp_path / "playbook.yml"
+        f.write_text(
+            "- name: weaken ssh\n"
+            "  hosts: all\n"
+            "  tasks:\n"
+            "    - lineinfile:\n"
+            "        path: /etc/ssh/sshd_config\n"
+            "        line: 'PasswordAuthentication yes'\n"
+        )
+        result = analyzer.analyze(f)
+        assert result["tool"] == "ansible"
+        assert any(s["type"] == "ssh_password_auth_enabled" for s in result["smells"])
+
+    def test_docker_supply_chain_and_setuid_detected(self, analyzer, tmp_path):
+        f = tmp_path / "Dockerfile"
+        f.write_text(
+            "FROM node:latest\n"
+            "RUN curl -fsSL https://example.com/install.sh | bash\n"
+            "RUN chmod 4755 /usr/local/bin/helper\n"
+        )
+        result = analyzer.analyze(f)
+        smell_types = {s["type"] for s in result["smells"]}
+        assert result["tool"] == "docker"
+        assert "unpinned_base_image" in smell_types
+        assert "remote_script_without_integrity" in smell_types
+        assert "setuid_setgid_binary" in smell_types
 
     def test_analyze_returns_all_required_keys(self, analyzer):
         path = DATASET_DIR / "terraform" / "insecure_ec2.tf"

@@ -1,5 +1,5 @@
 % ============================================================
-% Rapport Technique --- Rapport 7
+% Rapport Technique --- Rapport 5
 % QLoRA Fine-Tuning of Gemma-2-2B-IT for IaC Security
 % Remediation: Methodology, Execution, and Integration Path
 %
@@ -200,7 +200,7 @@
   \noindent\rule{\linewidth}{0.6pt}
 
   \vspace{0.6cm}
-  {\normalsize\itshape Technical Report --- Rapport 7}
+  {\normalsize\itshape Technical Report --- Rapport 5}
 
   \vspace{3cm}
   \begin{minipage}[t]{0.45\textwidth}
@@ -286,7 +286,7 @@ The master's thesis project introduces an \emph{agentic framework} for
 \gls{iac} security analysis and remediation. Seven modules cooperate under
 a central orchestrator: a contextual analyzer, a knowledge base, a
 \gls{rag} retriever, a fix generator, an external validator (Checkov,
-GLITCH, Terrascan), a patch formatter, and the orchestrator itself. A
+KICS, and future scanner backends), a patch formatter, and the orchestrator itself. A
 detailed architecture and evaluation methodology are given in
 \emph{Rapport 2}; early experimental results (Config A baseline, Checkov
 alone) are reported in its Chapter~6.
@@ -313,6 +313,50 @@ points of concern that motivate the present experiment:
 A plausible direction is to fine-tune a small open-weight model on the
 data we already scraped. This report documents a \emph{first, exploratory}
 attempt in that direction, carried out on Kaggle's free GPU tier.
+
+\section{Historical Research Lineage}
+
+The project sits at the intersection of four research lines rather than
+inside a single isolated topic: \gls{iac} smell taxonomies, static and
+semantic detection, retrieval-augmented generation, and validated code
+repair. Figure~\ref{fig:research-lineage} summarises the progression
+that motivates the present work.
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[
+      x=1.9cm,
+      y=1cm,
+      milestone/.style={
+        draw, rounded corners=2pt, align=center, font=\scriptsize,
+        text width=2.25cm, minimum height=0.95cm, fill=gray!8
+      },
+      arrow/.style={-{Latex[length=2mm]}, thick, titleblue}
+    ]
+    \node[milestone, fill=blue!8]   (m2019) at (0,0)
+      {2019--2020\\Seven Sins\\Gang of Eight};
+    \node[milestone, fill=green!8]  (m2022) at (1.55,0)
+      {2022\\GLITCH\\polyglot rules};
+    \node[milestone, fill=orange!10] (m2023) at (3.10,0)
+      {2023--2024\\Self-RAG, CRAG\\tool-using LLMs};
+    \node[milestone, fill=purple!10] (m2025) at (4.65,0)
+      {2025\\62-smell taxonomy\\semantic IaC detection};
+    \node[milestone, fill=red!8]    (m2026) at (6.20,0)
+      {This thesis\\agentic remediation\\scanner validation};
+
+    \draw[arrow] (m2019) -- (m2022);
+    \draw[arrow] (m2022) -- (m2023);
+    \draw[arrow] (m2023) -- (m2025);
+    \draw[arrow] (m2025) -- (m2026);
+
+    \node[font=\scriptsize, align=center, text width=11.5cm] at (3.1,-1.15)
+      {The thesis contribution is not another detector only: it combines
+       retrieval, generation, and independent scanner feedback to move from
+       \emph{finding} IaC smells toward producing validated remediations.};
+  \end{tikzpicture}
+  \caption{Historical positioning of the project relative to IaC security and RAG research.}
+  \label{fig:research-lineage}
+\end{figure}
 
 \section{Why Fine-Tuning, Why a Small Model}
 
@@ -477,11 +521,11 @@ attention projections of every transformer block. With a hidden size
   \abs{\theta_{\mathrm{LoRA}}}
     \;\approx\; r \cdot L \cdot \sum_{W \in \{q,k,v,o\}}
       \bigl(d_{\mathrm{in}}(W) + d_{\mathrm{out}}(W)\bigr)
-    \;=\; 9{,}273{,}344,
+    \;=\; 6{,}389{,}760,
   \label{eq:lora-count-gemma}
 \end{equation}
-i.e.\ \(\approx 9.3\)~M trainable parameters, which is a fraction
-\(9.3 \times 10^{6} / 2.6 \times 10^{9} \approx 0.35\,\%\) of the full
+i.e.\ \(\approx 6.4\)~M trainable parameters, which is a fraction
+\(6.4 \times 10^{6} / 2.6 \times 10^{9} \approx 0.25\,\%\) of the full
 base model. The resulting adapter file is 25~MB on disk instead of
 \(\approx 5\)~GB for the full fp16 model --- a \(\sim\!200\!\times\)
 reduction that is the property exploited by \gls{qlora}.
@@ -516,13 +560,13 @@ are attached with adapters in our configuration.
       grid=major, grid style={dashed, black!15},
     ]
       \addplot+[draw=black!70, fill=black!25, mark=none]
-        coordinates {(2.6e9,full) (9.27e6,lora)};
+        coordinates {(2.6e9,full) (6.39e6,lora)};
     \end{axis}
   \end{tikzpicture}
   \caption[LoRA trainable fraction]{Trainable-parameter count for
            Gemma-2-2B with and without \gls{lora}
            (Eq.~\eqref{eq:lora-count-gemma}). The \gls{lora} bar is
-           \(\sim 280\times\) shorter than the full-model bar on the
+           \(\sim\!407\times\) shorter than the full-model bar on the
            log axis.}
   \label{fig:lora-count}
 \end{figure}
@@ -623,8 +667,8 @@ Section~\ref{sec:attn-memory}.
 \end{figure}
 
 Combining Table~\ref{tab:vram-budget} with the adapter cost of
-Eq.~\eqref{eq:lora-count-gemma} (\(\approx 9.3\)~M parameters in fp16,
-\(\approx 18\)~MB) and 8-bit AdamW states
+Eq.~\eqref{eq:lora-count-gemma} (\(\approx 6.4\)~M parameters in fp32,
+\(\approx 25\)~MB) and 8-bit AdamW states
 (Dettmers, 2022)\footnote{T.~Dettmers, \emph{8-bit Optimizers via
 Block-wise Quantization}, ICLR 2022.} for those same parameters, the
 static part of the \gls{vram} budget stays well below 2~GB. The bulk of
@@ -991,7 +1035,7 @@ demonstrate a working baseline, not to optimise hyperparameters.
     \gls{lora} \(\alpha\)   & 32 \\
     \gls{lora} dropout      & 0.05 \\
     Target modules          & \texttt{q\_proj, k\_proj, v\_proj, o\_proj} \\
-    Trainable parameters    & 9{,}273{,}344 (0.35~\% of 2.6~B) \\
+    Trainable parameters    & 6{,}389{,}760 (0.25~\% of 2.6~B) \\
     Learning rate           & $2 \times 10^{-4}$ \\
     Scheduler               & Cosine \\
     Warmup ratio            & 3~\% \\
@@ -1508,7 +1552,7 @@ framework.
     \node[box] (adapter)     {LoRA adapter\\(25~MB)};
     \node[box, right=of adapter] (merged)  {Merged model\\($\sim$~5~GB safetensors)};
     \node[box, right=of merged]  (gguf)    {GGUF (Q4)\\($\sim$~1.5~GB)};
-    \node[box, right=of gguf]    (ollama)  {Ollama model\\\texttt{iac-gemma}};
+    \node[box, right=of gguf]    (ollama)  {Ollama model\\\texttt{iac-fixer}};
     \draw[arrow] (adapter) -- node[above, font=\footnotesize] {merge} (merged);
     \draw[arrow] (merged)  -- node[above, font=\footnotesize] {convert} (gguf);
     \draw[arrow] (gguf)    -- node[above, font=\footnotesize] {package} (ollama);
@@ -1532,12 +1576,12 @@ distributed and loaded by Ollama.
 
 \textbf{Step 3 --- Package for Ollama.} A minimal \texttt{Modelfile}
 declaring the base \gls{gguf}, the Gemma-2 chat template, and a
-security-focused system prompt is passed to \texttt{ollama create
-iac-gemma}. Thereafter the model can be invoked identically to any
-other Ollama model.
+security-focused system prompt is passed to
+\texttt{ollama create iac-fixer}. Thereafter the model can be invoked
+identically to any other Ollama model.
 
 On paper, the only change required on the framework side is to set
-\texttt{OLLAMA\_MODEL=iac-gemma} in the \texttt{.env} file: the existing
+\texttt{OLLAMA\_MODEL=iac-fixer} in the \texttt{.env} file: the existing
 \texttt{FixGenerator} class (in \texttt{Code/src/generator/fix\_generator.py})
 discovers the backend and model through environment variables.
 This integration has not yet been exercised end to end and may require
@@ -1546,8 +1590,8 @@ adjustments to the chat template or stop tokens.
 \section{Config B Evaluation}
 
 Once the model is live in Ollama, the framework's evaluation script
-\texttt{Code/scripts/evaluate.py} can be re-run on the eight-file
-labelled dataset to produce \emph{Config B} numbers:
+\texttt{Code/scripts/evaluate.py} can be re-run on the current 16-file
+labelled benchmark to produce \emph{Config B} numbers:
 
 \begin{itemize}
   \item \textbf{Config A} (reported in Rapport~2, Chapter~6):

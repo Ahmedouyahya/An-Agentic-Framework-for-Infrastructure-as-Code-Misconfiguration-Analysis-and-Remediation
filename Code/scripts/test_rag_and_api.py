@@ -2,7 +2,7 @@
 Quick test: build the RAG knowledge base from the taxonomy
 and run a sample query, then test the LLM backend connection.
 
-Supports all backends: Anthropic, OpenRouter, Ollama (local), OpenAI.
+Supports all backends: Anthropic, DeepSeek, OpenRouter, Ollama (local), OpenAI.
 
 Usage:
     .venv/bin/python scripts/test_rag_and_api.py
@@ -89,7 +89,28 @@ elif os.getenv("OPENROUTER_API_KEY"):
     except Exception as e:
         print(f"FAIL — {e}")
 
-elif os.getenv("OLLAMA_MODEL") or True:  # Default to Ollama
+elif os.getenv("DEEPSEEK_API_KEY"):
+    backend = "deepseek"
+    model = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
+    base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+    print(f"Backend: DeepSeek (DEEPSEEK_API_KEY set) — model={model}")
+    try:
+        from openai import OpenAI
+        client = OpenAI(
+            base_url=base_url,
+            api_key=os.environ["DEEPSEEK_API_KEY"],
+        )
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": "Say 'IaC security test OK' and nothing else."}],
+            max_tokens=64,
+            extra_body={"thinking": {"type": os.getenv("DEEPSEEK_THINKING", "disabled")}},
+        )
+        print(f"OK — Response: {response.choices[0].message.content}")
+    except Exception as e:
+        print(f"FAIL — {e}")
+
+elif os.getenv("OLLAMA_MODEL"):
     backend = "ollama"
     model = os.getenv("OLLAMA_MODEL", "gemma3:4b")
     base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
@@ -140,6 +161,42 @@ elif os.getenv("OPENAI_API_KEY"):
         print(f"OK — Response: {response.choices[0].message.content}")
     except Exception as e:
         print(f"FAIL — {e}")
+
+else:
+    backend = "ollama"
+    model = "gemma3:4b"
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+    print(f"Backend: Ollama (default local) — model={model} base_url={base_url}")
+
+    try:
+        from openai import OpenAI
+        client = OpenAI(base_url=base_url, api_key="ollama")
+        models = client.models.list()
+        available = [m.id for m in models.data]
+        print(f"  Available models: {available[:10]}")
+
+        if model not in available:
+            print(f"\n  Model '{model}' not found. Pull it with:")
+            print(f"    ollama pull {model}")
+            print(f"\n  Recommended models for your hardware (12 GB RAM, no GPU):")
+            print(f"    ollama pull gemma3:4b      # 2.5 GB, good quality")
+            print(f"    ollama pull qwen2.5-coder:3b  # 2 GB, code-focused")
+            print(f"    ollama pull phi4-mini       # 2.4 GB, fast")
+        else:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": "Say 'IaC security test OK' and nothing else."}],
+                max_tokens=20,
+            )
+            print(f"OK — Response: {response.choices[0].message.content}")
+    except Exception as e:
+        print(f"FAIL — Cannot connect to Ollama at {base_url}")
+        print(f"  Error: {e}")
+        print(f"\n  To set up Ollama:")
+        print(f"    1. Install: curl -fsSL https://ollama.com/install.sh | sh")
+        print(f"    2. Start:   ollama serve")
+        print(f"    3. Pull:    ollama pull gemma3:4b")
+        print(f"    4. Re-run this test")
 
 print()
 print("=" * 60)

@@ -7,7 +7,11 @@ and that a clean version of each file passes.
 import pytest
 import subprocess
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+from validator.tool_integrator import ExternalToolValidator
 
 DATASET_DIR = Path(__file__).parent.parent / "dataset"
 
@@ -132,3 +136,28 @@ class TestMetadata:
             assert "smells" in entry
             file_path = DATASET_DIR / entry["file"]
             assert file_path.exists(), f"File referenced in metadata not found: {file_path}"
+
+
+class TestPatchApplication:
+
+    def test_git_recount_fallback_applies_stale_hunk_counts(self, tmp_path):
+        original = tmp_path / "example.tf"
+        original.write_text(
+            'resource "aws_s3_bucket" "b" {\n'
+            '  bucket = "demo"\n'
+            '  acl    = "public-read"\n'
+            '}\n'
+        )
+        patch = (
+            "--- original\n"
+            "+++ fixed\n"
+            "@@ -1,99 +1,99 @@\n"
+            ' resource "aws_s3_bucket" "b" {\n'
+            '   bucket = "demo"\n'
+            '-  acl    = "public-read"\n'
+            '+  acl    = "private"\n'
+            " }\n"
+        )
+
+        patched = ExternalToolValidator()._apply_patch(original, patch)
+        assert 'acl    = "private"' in patched

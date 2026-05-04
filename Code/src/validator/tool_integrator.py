@@ -19,6 +19,7 @@ from __future__ import annotations
 import difflib
 import json
 import logging
+import re
 import shutil
 import subprocess
 import tempfile
@@ -264,6 +265,8 @@ class ExternalToolValidator:
                     check=True, capture_output=True,
                 )
                 return Path(tmp_copy.name).read_text()
+            except subprocess.CalledProcessError:
+                return self._apply_patch_with_git_recount(original_path, patch)
             finally:
                 Path(patch_file).unlink(missing_ok=True)
                 try:
@@ -273,3 +276,42 @@ class ExternalToolValidator:
         else:
             # The LLM returned full patched content instead of a diff
             return patch
+
+    def _apply_patch_with_git_recount(self, original_path: Path, patch: str) -> str:
+        """
+        Apply a model-generated diff with git's --recount fallback.
+        LLMs often produce correct hunks but stale hunk line counts; git apply
+        can recalculate those counts if the context is otherwise valid.
+        """
+        if shutil.which("git") is None:
+            raise RuntimeError("patch failed and git is not installed for --recount fallback")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            target = tmpdir_path / original_path.name
+            target.write_text(original_path.read_text(errors="replace"))
+
+            normalised_patch = self._normalise_patch_paths(patch, original_path.name)
+            patch_path = tmpdir_path / "candidate.patch"
+            patch_path.write_text(normalised_patch)
+
+            subprocess.run(
+                ["git", "-C", str(tmpdir_path), "apply", "--recount", str(patch_path)],
+                check=True, capture_output=True, text=True,
+            )
+            return target.read_text()
+
+    @staticmethod
+    def _normalise_patch_paths(patch: str, filename: str) -> str:
+        """Point generic model diff headers at the temp file used for validation."""
+        lines = patch.splitlines()
+        for idx, line in enumerate(lines):
+            if line.startswith("--- "):
+                lines[idx] = f"--- a/{filename}"
+                break
+        for idx, line in enumerate(lines):
+            if line.startswith("+++ "):
+                lines[idx] = f"+++ b/{filename}"
+                break
+        text = "\n".join(lines)
+        return re.sub(r"\n?```\s*$", "", text).rstrip() + "\n"

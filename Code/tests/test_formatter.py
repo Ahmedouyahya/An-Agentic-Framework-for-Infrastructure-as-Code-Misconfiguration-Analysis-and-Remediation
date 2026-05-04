@@ -9,6 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from formatter.patch_formatter import PatchFormatter
+from generator.fix_generator import FixGenerator
 
 DATASET_DIR = Path(__file__).parent.parent / "dataset"
 
@@ -119,3 +120,29 @@ class TestDiffGeneration:
         )
         # Should generate a diff from the content
         assert "diff" in result
+
+
+class TestGeneratorResponseParsing:
+
+    def test_parse_response_strips_markdown_fences(self):
+        raw = """```diff
+--- original
++++ fixed
+@@ -1 +1 @@
+-acl = "public-read"
++acl = "private"
+```"""
+        patches = FixGenerator("dummy:model", self_consistency=False)._parse_response(raw)
+        assert patches == [
+            '--- original\n+++ fixed\n@@ -1 +1 @@\n-acl = "public-read"\n+acl = "private"'
+        ]
+
+    def test_parse_response_stops_at_trailing_fence(self):
+        raw = """--- original
++++ fixed
+@@ -1 +1 @@
+-old
++new
+```"""
+        patch = FixGenerator("dummy:model", self_consistency=False)._parse_response(raw)[0]
+        assert "```" not in patch

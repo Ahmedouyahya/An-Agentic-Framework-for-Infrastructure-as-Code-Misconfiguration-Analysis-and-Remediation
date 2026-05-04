@@ -242,6 +242,70 @@
 \end{frame}
 
 % ================================================================
+\section{Research Lineage}
+% ================================================================
+
+\begin{frame}{How the research line evolved}
+  \centering
+  \begin{tikzpicture}[
+      font=\scriptsize,
+      x=1.55cm,
+      y=1cm,
+      milestone/.style={
+        draw, rounded corners=3pt, align=center,
+        minimum width=1.85cm, minimum height=0.85cm,
+        inner sep=3pt, font=\scriptsize\bfseries
+      },
+      detail/.style={font=\tiny, align=center, text width=1.9cm},
+      arrow/.style={-{Latex[length=2mm]}, thick, sfaxblue!75}
+    ]
+    \node[milestone, fill=sfaxlightblue, draw=sfaxblue] (s1) at (0,0)
+      {2019--20\\Taxonomies};
+    \node[detail, below=1mm of s1] {Seven Sins\\Gang of Eight};
+
+    \node[milestone, fill=modulegreen!15, draw=modulegreen] (s2) at (1.7,0)
+      {2022\\Polyglot};
+    \node[detail, below=1mm of s2] {GLITCH\\rule-based IR};
+
+    \node[milestone, fill=moduleorange!15, draw=moduleorange] (s3) at (3.4,0)
+      {2023--24\\RAG + tools};
+    \node[detail, below=1mm of s3] {Self-RAG\\CRAG\\Toolformer};
+
+    \node[milestone, fill=modulepurple!15, draw=modulepurple] (s4) at (5.1,0)
+      {2025\\Semantic IaC};
+    \node[detail, below=1mm of s4] {62-smell taxonomy\\CodeBERT/LongFormer};
+
+    \node[milestone, fill=accentred!12, draw=accentred] (s5) at (6.8,0)
+      {This PFE\\Remediation};
+    \node[detail, below=1mm of s5] {RAG + generator\\scanner validation};
+
+    \foreach \a/\b in {s1/s2,s2/s3,s3/s4,s4/s5}
+      \draw[arrow] (\a) -- (\b);
+  \end{tikzpicture}
+
+  \vspace{1.0em}
+  \begin{columns}[T]
+    \begin{column}{0.47\textwidth}
+      \begin{block}{What prior work gives us}
+        \scriptsize
+        \begin{itemize}
+          \item A vocabulary of IaC security smells.
+          \item Static and semantic detectors.
+          \item RAG/self-verification patterns.
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\textwidth}
+      \begin{exampleblock}{Where this thesis is positioned}
+        \scriptsize
+        Move from \textbf{detecting} smells to generating and validating
+        concrete IaC remediations inside an agentic loop.
+      \end{exampleblock}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ================================================================
 \section{Positioning}
 % ================================================================
 
@@ -254,7 +318,7 @@
           \item Contextual Analyzer
           \item Knowledge Base + RAG Retriever
           \item \textbf{Fix Generator} \faArrowRight\ this work
-          \item External Validator (Checkov, tfsec, KICS)
+          \item External Validator (Checkov + KICS)
           \item Patch Formatter \& Explanation
         \end{itemize}
       \end{block}
@@ -355,19 +419,94 @@
     \end{column}
     \begin{column}{0.42\textwidth}
       \begin{center}
-        \begin{tikzpicture}[font=\scriptsize]
-          \node[draw=sfaxblue, fill=sfaxblue!10, rounded corners,
-                minimum width=2.4cm, minimum height=1.4cm]
-                (w0) at (0,0) {$W_0$ \textit{(frozen)}};
-          \node[draw=moduleorange, fill=moduleorange!15, rounded corners,
-                minimum width=0.9cm, minimum height=1.4cm]
-                (a) at (3.2,0.35) {$A$};
-          \node[draw=moduleorange, fill=moduleorange!15, rounded corners,
-                minimum width=0.9cm, minimum height=1.4cm]
-                (b) at (4.4,0.35) {$B$};
-          \node[font=\tiny, text=moduleorange] at (3.8,-0.7) {trainable};
-          \draw[->,>=Latex] (w0.east) -- ++(0.4,0);
-          \node[font=\small] at (1.9,0.35) {$+$};
+        \begin{tikzpicture}[
+            font=\scriptsize,
+            arr/.style={-{Latex[length=2mm]}, line width=0.7pt},
+          ]
+          % --- input ---
+          \node[font=\scriptsize\bfseries] (x) at (0,0) {$x$};
+
+          % --- fork point (invisible) ---
+          \coordinate[right=0.9cm of x] (fork);
+
+          % --- frozen W0 (large ~square, d×k both big) ---
+          \node[draw=sfaxblue!85, fill=sfaxblue!12, rounded corners=2pt,
+                minimum width=1.45cm, minimum height=1.0cm,
+                font=\scriptsize\bfseries, inner sep=4pt,
+                right=0.5cm of fork, yshift=0.95cm] (w0) {\faLock~$W_0$};
+
+          % --- A: wide pancake (r×k, r is tiny) ---
+          \node[draw=moduleorange!80, fill=moduleorange!12, rounded corners=2pt,
+                minimum width=1.8cm, minimum height=0.30cm,
+                font=\scriptsize\bfseries, inner sep=2pt,
+                right=1.1cm of fork, yshift=-0.75cm] (a) {$A$};
+
+          % --- B: tall pillar (d×r, r is tiny) ---
+          \node[draw=moduleorange!80, fill=moduleorange!12, rounded corners=2pt,
+                minimum width=0.38cm, minimum height=1.15cm,
+                font=\scriptsize\bfseries, inner sep=2pt,
+                right=0.15cm of a] (b) {$B$};
+
+          % --- dashed box around A,B ---
+          \begin{scope}[on background layer]
+            \node[draw=moduleorange!70, dashed, rounded corners=3pt,
+                  inner xsep=4pt, inner ysep=7pt,
+                  fit=(a)(b),
+                  label={[text=moduleorange!85,font=\tiny\bfseries]south:trainable}] {};
+          \end{scope}
+
+          % --- sum circle ---
+          \node[circle, draw=sfaxdark, fill=white, inner sep=0pt,
+                minimum size=0.50cm, font=\bfseries,
+                right=0.45cm of b] (plus) {$\Sigma$};
+
+          % --- output ---
+          \node[font=\scriptsize\bfseries, right=0.3cm of plus] (h) {$h$};
+
+          % --- arrows ---
+          \draw[arr, sfaxblue!70] (x.east) -- (fork) |- (w0.west);
+          \draw[arr, sfaxblue!70] (w0.east) -| (plus.north);
+          \draw[arr, moduleorange!80] (x.east) -- (fork) |- (a.west);
+          \draw[arr, moduleorange!80] (a.east) -- (b.west);
+          \draw[arr, moduleorange!80] (b.east) -- (plus.west);
+          \draw[arr, sfaxdark] (plus.east) -- (h.west);
+
+          % --- dimension labels on matrices ---
+          \node[font=\tiny\itshape, text=sfaxblue!75, below=0.02cm of w0]
+            {$\mathbb{R}^{d \times k}$};
+
+          % --- dimension callouts for the low-rank bottleneck ---
+          % k above A (the wide dimension of the pancake)
+          \draw[moduleorange!60, line width=0.4pt,
+                {Latex[length=1.5mm]}-{Latex[length=1.5mm]}]
+                ($(a.north west)+(0,0.15)$) -- ($(a.north east)+(0,0.15)$);
+          \node[font=\tiny, text=moduleorange!80, above=0.02cm]
+                at ($(a.north)!0.5!(a.north east)+(0,0.15)$) {$k$};
+
+          % r above B (the narrow dimension)
+          \draw[moduleorange!60, line width=0.4pt,
+                {Latex[length=1.5mm]}-{Latex[length=1.5mm]}]
+                ($(b.north west)+(-0.05,0.15)$) -- ($(b.north east)+(0.05,0.15)$);
+          \node[font=\tiny, text=moduleorange!80, above=0.02cm]
+                at ($(b.north)!0.5!(b.north east)+(0,0.15)$) {$r$};
+
+          % d on the left side of W0
+          \draw[sfaxblue!50, line width=0.4pt,
+                {Latex[length=1.5mm]}-{Latex[length=1.5mm]}]
+                ($(w0.north west)+(-0.15,0)$) -- ($(w0.south west)+(-0.15,0)$);
+          \node[font=\tiny, text=sfaxblue!70, left=0.02cm]
+                at ($(w0.west)!0.5!(w0.south west)+(-0.15,0)$) {$d$};
+
+          % d on the right side of B
+          \draw[moduleorange!60, line width=0.4pt,
+                {Latex[length=1.5mm]}-{Latex[length=1.5mm]}]
+                ($(b.north east)+(0.10,0)$) -- ($(b.south east)+(0.10,0)$);
+          \node[font=\tiny, text=moduleorange!80, right=0.02cm]
+                at ($(b.east)!0.5!(b.south east)+(0.10,0)$) {$d$};
+
+          % --- key formula ---
+          \node[font=\tiny, text=sfaxdark, below=1.35cm of a, align=center]
+            {$W = W_0 + BA,\qquad r \ll d{,}k$};
         \end{tikzpicture}
       \end{center}
     \end{column}
@@ -639,10 +778,16 @@
 \end{frame}
 
 \begin{frame}[fragile]{The five Kaggle cells (summary)}
+  % compact styles for this slide only
+  \lstdefinestyle{kcell}{style=shell,
+      basicstyle=\ttfamily\fontsize{5.8}{6.6}\selectfont,
+      aboveskip=1pt, belowskip=1pt, xleftmargin=2pt, xrightmargin=2pt,
+      framexleftmargin=1pt, framexrightmargin=1pt}
+  \setbeamertemplate{blocks}[rounded][shadow=false]
   \begin{columns}[T]
     \begin{column}{0.48\textwidth}
       \begin{block}{\faCog\ Cell 1 --- Install deps}
-      \begin{lstlisting}[style=shell, basicstyle=\ttfamily\tiny]
+      \begin{lstlisting}[style=kcell]
 !pip install -q -U transformers==4.44.2 \
   datasets==2.21.0 peft==0.12.0 \
   accelerate==0.34.2 bitsandbytes==0.43.3 \
@@ -650,15 +795,17 @@
 !pip install -q -U bitsandbytes
       \end{lstlisting}
       \end{block}
+      \vspace{-2mm}
       \begin{block}{\faKey\ Cell 2 --- Expose HF token}
-      \begin{lstlisting}[style=shell, basicstyle=\ttfamily\tiny]
+      \begin{lstlisting}[style=kcell]
 from kaggle_secrets import UserSecretsClient
 os.environ["HF_TOKEN"] = \
   UserSecretsClient().get_secret("HF_TOKEN")
       \end{lstlisting}
       \end{block}
+      \vspace{-2mm}
       \begin{block}{\faFlask\ Cell 3 --- Smoke test (200 samples)}
-      \begin{lstlisting}[style=shell, basicstyle=\ttfamily\tiny]
+      \begin{lstlisting}[style=kcell]
 !python 02_train_qlora.py \
   --model google/gemma-2-2b-it \
   --data-dir .../data \
@@ -669,7 +816,7 @@ os.environ["HF_TOKEN"] = \
     \end{column}
     \begin{column}{0.48\textwidth}
       \begin{exampleblock}{\faRocket\ Cell 4 --- Full training (1 epoch)}
-      \begin{lstlisting}[style=shell, basicstyle=\ttfamily\tiny]
+      \begin{lstlisting}[style=kcell]
 !python 02_train_qlora.py \
   --model google/gemma-2-2b-it \
   --data-dir .../data \
@@ -678,8 +825,9 @@ os.environ["HF_TOKEN"] = \
   --grad-accum 8 --lr 2e-4
       \end{lstlisting}
       \end{exampleblock}
+      \vspace{-2mm}
       \begin{block}{\faSearch\ Cell 5 --- Inference check}
-      \begin{lstlisting}[style=shell, basicstyle=\ttfamily\tiny]
+      \begin{lstlisting}[style=kcell]
 !python 03_inference.py \
   --model google/gemma-2-2b-it \
   --adapter /kaggle/working/lora_out \
@@ -687,6 +835,7 @@ os.environ["HF_TOKEN"] = \
   --n-samples 3
       \end{lstlisting}
       \end{block}
+      \vspace{-2mm}
       \begin{alertblock}{Smoke test is a sanity check, not a curve}
       \scriptsize
       Produces a single final loss, not a learning curve; only the full
@@ -872,46 +1021,93 @@ os.environ["HF_TOKEN"] = \
 
 \begin{frame}{Integration path: adapter $\to$ Ollama}
   \centering
+  \resizebox{0.96\textwidth}{!}{%
   \begin{tikzpicture}[
-      node distance=4mm,
-      box/.style={draw, rounded corners=3pt, minimum width=2.6cm,
-                  minimum height=1.0cm, align=center, font=\scriptsize,
-                  fill=sfaxlightblue, drop shadow={shadow blur steps=4,opacity=0.25}},
-      arrow/.style={-{Latex[length=2.5mm]}, thick, sfaxblue}
+      every node/.style={font=\scriptsize},
+      box/.style={draw, rounded corners=3pt, minimum width=2.00cm,
+                  minimum height=1.10cm, align=center, font=\scriptsize,
+                  inner sep=2pt,
+                  drop shadow={shadow blur steps=4,opacity=0.22}},
+      input/.style={box, fill=sfaxlightblue, draw=sfaxblue!70,
+                    minimum width=2.00cm},
+      arrow/.style={-{Latex[length=2.3mm]}, thick, sfaxblue!85},
+      steplbl/.style={font=\tiny\bfseries, text=sfaxdark,
+                      fill=sfaxgold!30, rounded corners=2pt,
+                      inner xsep=2.5pt, inner ysep=1.5pt,
+                      draw=sfaxgold!70, line width=0.3pt},
+      fmt/.style={font=\tiny\itshape, text=sfaxblue!80}
     ]
-    \node[box, fill=moduleorange!20, draw=moduleorange] (adapter)
-      {LoRA adapter\\\scriptsize 25\,MB};
-    \node[box, right=1.2cm of adapter, fill=modulepurple!20, draw=modulepurple] (merged)
-      {Merged HF model\\\scriptsize $\sim$\,5\,GB};
-    \node[box, right=1.2cm of merged, fill=moduleblue!20, draw=moduleblue] (gguf)
-      {GGUF Q4\_K\_M\\\scriptsize $\sim$\,1.5\,GB};
-    \node[box, right=1.2cm of gguf, fill=accentgreen!20, draw=accentgreen] (ollama)
-      {Ollama model\\\scriptsize \texttt{iac-fixer}};
-    \draw[arrow] (adapter) -- node[above, font=\tiny\bfseries] {04\_merge}    (merged);
-    \draw[arrow] (merged)  -- node[above, font=\tiny\bfseries] {05\_to\_gguf} (gguf);
-    \draw[arrow] (gguf)    -- node[above, font=\tiny\bfseries] {06\_ollama}   (ollama);
-  \end{tikzpicture}
+    % --- inputs (left column, stacked) ---
+    \node[input] (base)
+      {\textbf{Gemma-2-2B-IT}\\\tiny base weights\\\tiny fp16 $\cdot$ $\sim$\,5\,GB};
+    \node[input, below=5mm of base, fill=moduleorange!15, draw=moduleorange!80] (adapter)
+      {\textbf{LoRA adapter}\\\tiny $A,B$ matrices, $r{=}16$\\\tiny safetensors $\cdot$ 25\,MB};
 
-  \vspace{0.8em}
+    % --- pipeline (horizontal, right of inputs) ---
+    \node[box, fill=modulepurple!18, draw=modulepurple!80,
+          right=1.55cm of base.east, yshift=-10mm] (merged)
+      {\textbf{Merged HF model}\\\tiny $W_0 + BA$ (in-place)\\\tiny safetensors $\cdot$ $\sim$\,5\,GB};
+    \node[box, right=1.55cm of merged, fill=moduleblue!18, draw=moduleblue!80] (gguf)
+      {\textbf{GGUF Q4\_K\_M}\\\tiny 4-bit k-quant\\\tiny single file $\cdot$ $\sim$\,1.5\,GB};
+    \node[box, right=1.55cm of gguf, fill=accentgreen!18, draw=accentgreen!80] (ollama)
+      {\textbf{Ollama model}\\\tiny registered locally\\\tiny \texttt{iac-fixer:latest}};
+
+    % --- downstream framework consumer ---
+    \node[box, below=7mm of ollama, fill=sfaxgold!25, draw=sfaxgold!90,
+          minimum width=2.35cm] (agent)
+      {\faRobot\ \textbf{FixGenerator}\\\tiny agent module\\\tiny reads \texttt{OLLAMA\_MODEL}};
+
+    % --- arrows: inputs converge to merged ---
+    \draw[arrow] (base.east)    -| (merged.west);
+    \draw[arrow] (adapter.east) -| (merged.west);
+
+    % --- step label for the merge step ---
+    \node[steplbl] at ($(base.east)!0.5!(merged.west)+(0,0.55)$)
+      {04\_merge\_adapter};
+    \node[fmt]    at ($(base.east)!0.5!(merged.west)+(0,0.25)$)
+      {PEFT merge};
+
+    % --- horizontal pipeline arrows ---
+    \draw[arrow] (merged.east) -- (gguf.west);
+    \node[steplbl] at ($(merged.east)!0.5!(gguf.west)+(0,0.32)$)
+      {05\_to\_gguf};
+    \node[fmt]    at ($(merged.east)!0.5!(gguf.west)+(0,-0.30)$)
+      {llama.cpp};
+
+    \draw[arrow] (gguf.east) -- (ollama.west);
+    \node[steplbl] at ($(gguf.east)!0.5!(ollama.west)+(0,0.32)$)
+      {06\_ollama};
+    \node[fmt]    at ($(gguf.east)!0.5!(ollama.west)+(0,-0.30)$)
+      {Modelfile};
+
+    % --- final consumer arrow ---
+    \draw[arrow] (ollama.south) -- (agent.north);
+    \node[fmt] at ($(ollama.south)!0.5!(agent.north)+(0.9,0)$)
+      {\texttt{.env} switch};
+  \end{tikzpicture}%
+  }
+
+  \vspace{0.2em}
   \begin{columns}[T]
-    \begin{column}{0.48\textwidth}
+    \begin{column}{0.49\textwidth}
       \begin{block}{Three new scripts added to the repo}
         \scriptsize
         \begin{itemize}
           \item \texttt{04\_merge\_adapter.py}
                 --- \texttt{PeftModel.merge\_and\_unload()}
           \item \texttt{05\_convert\_to\_gguf.sh}
-                --- llama.cpp + Q4\_K\_M quant
+                --- llama.cpp \texttt{convert\_hf\_to\_gguf.py} + \texttt{llama-quantize}
           \item \texttt{06\_ollama\_create.sh}
-                --- Modelfile + \texttt{ollama create}
+                --- Modelfile + \texttt{ollama create iac-fixer}
         \end{itemize}
       \end{block}
     \end{column}
-    \begin{column}{0.48\textwidth}
+    \begin{column}{0.49\textwidth}
       \begin{exampleblock}{Framework change required: one line}
         \scriptsize
-        Set \texttt{OLLAMA\_MODEL=iac-fixer} in \texttt{.env};
-        \texttt{FixGenerator} already reads the backend from env vars.
+        Set \texttt{OLLAMA\_MODEL=iac-fixer} in \texttt{.env}.
+        \texttt{FixGenerator} already reads the backend from env vars, so
+        no code change is needed downstream.
       \end{exampleblock}
     \end{column}
   \end{columns}
@@ -950,7 +1146,7 @@ os.environ["HF_TOKEN"] = \
           \item Merge adapter locally
           \item GGUF + Ollama registration
           \item Run \texttt{scripts/evaluate.py}
-                on the labelled 8-file dataset
+                on the labelled 16-file benchmark
           \item Compare Config A vs B
         \end{enumerate}
       \end{alertblock}

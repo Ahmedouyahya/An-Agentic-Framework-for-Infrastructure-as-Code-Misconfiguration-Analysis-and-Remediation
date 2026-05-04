@@ -49,16 +49,16 @@ Agent**:
 |---|----------------------------------------|--------------------------------------------------------------------------------------------------------|
 | 1 | Central Agent                          | Orchestrator of the iterative analyse → retrieve → generate → validate → refine loop.                  |
 | 2 | Contextual Analyzer                    | Identifies the IaC tool and pinpoints risky regions using structural metrics and a code model.         |
-| 3 | Knowledge Base                         | Vector DB seeded from a 62-category IaC security smell taxonomy (Configuration, Dependency, Security). |
+| 3 | Knowledge Base                         | Vector DB seeded from the War et al. 62-category IaC security smell taxonomy, extended in this implementation to 65 entries. |
 | 4 | Knowledge Retriever (CRAG / Self-RAG)  | Fetches relevant security patterns and fix examples for the flagged smell.                             |
 | 5 | Fix Generator                          | A fine-tuned small LLM that produces candidate patches with confidence scores.                         |
-| 6 | External Tool Integrator               | Runs Checkov, tfsec and KICS independently to validate each candidate patch.                           |
+| 6 | External Tool Integrator               | Runs Checkov and KICS-oriented validation hooks to check each candidate patch.                         |
 | 7 | Patch Formatter & Explanation Generator| Emits a unified diff plus a natural-language rationale with CWE references.                            |
 
 ```
 IaC Script → Contextual Analyzer → RAG Retriever → Fix Generator
                                                         │
-                    ┌── Valid? ← Checkov / tfsec / KICS
+                    ┌── Valid? ← Checkov / KICS
                     │
              YES  → Format patch + explanation → return to user
              NO   → Refine (loop back to Fix Generator)
@@ -106,10 +106,10 @@ Two distinct datasets are used, with different purposes:
 
 - **Language:** Python 3.12
 - **RAG / orchestration:** LangChain, ChromaDB
-- **LLM APIs:** OpenAI / OpenCode (pluggable)
+- **LLM APIs:** DeepSeek / OpenAI / Anthropic / OpenRouter / Ollama (pluggable)
 - **Fine-tuned local model:** `google/gemma-2-2b-it` with QLoRA (see
   `Code/training/trainning/README.md`), served via Ollama
-- **IaC scanners:** Checkov, tfsec, KICS
+- **IaC scanners:** Checkov, KICS; tfsec fixtures are used only as historical dataset sources
 - **Reports / slides:** LaTeX (`glossaries`, `tcolorbox`, `tikz`, Beamer)
 
 ## 7. Status

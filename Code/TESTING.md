@@ -9,7 +9,7 @@
 ## Quick Start
 
 ```bash
-cd /home/ahmedouyahye/Desktop/PFE/Code
+cd Code
 
 # Install dependencies
 pip3 install checkov pytest pytest-cov --break-system-packages
@@ -27,11 +27,11 @@ python3 scripts/evaluate.py --mode baseline
 
 | Test file | Module tested | Tests | What it checks |
 |---|---|---|---|
-| `tests/test_validator.py` | `src/validator/tool_integrator.py` | 7 | Checkov detects issues on each dataset file |
-| `tests/test_analyzer.py` | `src/analyzer/contextual.py` | 10 | Tool detection, metrics, smell extraction |
-| `tests/test_formatter.py` | `src/formatter/patch_formatter.py` | 8 | Explanation output, CWE references, diff generation |
+| `tests/test_validator.py` | `src/validator/tool_integrator.py` | 8 | Checkov detects issues on each dataset file and patch fallback works |
+| `tests/test_analyzer.py` | `src/analyzer/contextual.py` | 12 | Tool detection, metrics, smell extraction |
+| `tests/test_formatter.py` | `src/formatter/patch_formatter.py` | 10 | Explanation output, CWE references, diff generation, LLM diff parsing |
 | `tests/test_dataset.py` | `dataset/` | 33 | Metadata integrity, taxonomy, Checkov coverage (all 16 files) |
-| **Total** | | **58** | **All pass (Python 3.13, Checkov 3.2.513)** |
+| **Total** | | **63** | **All pass (Python 3.13, Checkov 3.2.513)** |
 
 ---
 
@@ -168,7 +168,7 @@ python3 scripts/evaluate.py --mode baseline
 # Results saved to: scripts/evaluation_results.json
 ```
 
-### Config A Baseline Results (Checkov 3.2.513, 8 original files)
+### Historical Config A Baseline Results (Checkov 3.2.513, 8 original files)
 
 | Tool | Precision | Recall | F1 | TP | FP | FN |
 |---|---|---|---|---|---|---|
@@ -196,8 +196,9 @@ floor that Config D (full pipeline) must surpass.
 To test the LLM-based pipeline, set an API key and run:
 
 ```bash
-# OpenAI backend
-export OPENAI_API_KEY="sk-..."
+# DeepSeek backend
+export DEEPSEEK_API_KEY="your-key-here"
+export DEEPSEEK_MODEL="deepseek-v4-flash"
 python3 -c "
 from pathlib import Path
 import sys; sys.path.insert(0, 'src')
@@ -217,7 +218,7 @@ kb.build()
 agent = CentralAgent(
     analyzer=ContextualAnalyzer(),
     retriever=KnowledgeRetriever(kb),
-    generator=FixGenerator('gpt-4o-mini'),
+    generator=FixGenerator('deepseek-v4-flash'),
     validator=ExternalToolValidator(),
     formatter=PatchFormatter(),
 )

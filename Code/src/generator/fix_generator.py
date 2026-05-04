@@ -8,6 +8,7 @@ Calls an LLM with a structured prompt that includes:
 
 Supported backends (detected from environment variables, in priority order):
   ANTHROPIC_API_KEY   → Anthropic Claude
+  DEEPSEEK_API_KEY    → DeepSeek (OpenAI-compatible)
   OPENROUTER_API_KEY  → OpenRouter (free models: Llama, Mistral, Gemma…)
   OLLAMA_MODEL        → Local Ollama (e.g. gemma3:4b, qwen2.5-coder:7b)
   OPENAI_API_KEY      → OpenAI
@@ -57,10 +58,14 @@ CONFIDENCE_THRESHOLD = 0.4
 # Default model for each backend when no explicit model is configured
 _BACKEND_DEFAULTS = {
     "anthropic":  "claude-sonnet-4-5-20241022",
+    "deepseek":   "deepseek-v4-flash",
     "openrouter": "meta-llama/llama-3.1-8b-instruct:free",
-    "ollama":     "gemma4:e2b",
+    "ollama":     "gemma3:4b",
     "openai":     "gpt-4o-mini",
 }
+
+# DeepSeek OpenAI-compatible base URL
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 
 # OpenRouter base URL (OpenAI-compatible)
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -79,6 +84,7 @@ class FixGenerator:
 
     Backend is selected automatically from environment variables:
       ANTHROPIC_API_KEY   → Anthropic
+      DEEPSEEK_API_KEY    → DeepSeek
       OPENROUTER_API_KEY  → OpenRouter (many free models)
       OLLAMA_MODEL        → Local Ollama instance
       OPENAI_API_KEY      → OpenAI fallback
@@ -88,6 +94,7 @@ class FixGenerator:
 
     Examples:
       FixGenerator()                                      # auto-detect, use default model
+      FixGenerator("deepseek-v4-flash")                   # DeepSeek fast model
       FixGenerator("gemma3:4b")                           # Ollama local with Gemma 3 4B
       FixGenerator("mistralai/mistral-7b-instruct:free")  # OpenRouter, free Mistral
       FixGenerator("gpt-4o-mini")                         # OpenAI
@@ -232,6 +239,8 @@ class FixGenerator:
     def _detect_backend(self) -> str:
         if os.getenv("ANTHROPIC_API_KEY"):
             return "anthropic"
+        if os.getenv("DEEPSEEK_API_KEY"):
+            return "deepseek"
         if os.getenv("OPENROUTER_API_KEY"):
             return "openrouter"
         if os.getenv("OLLAMA_MODEL") or self.model and self._looks_like_ollama(self.model):
@@ -250,6 +259,8 @@ class FixGenerator:
         """Return the model to actually use, falling back to backend default."""
         if self.model:
             return self.model
+        if self._backend == "deepseek":
+            return os.getenv("DEEPSEEK_MODEL", _BACKEND_DEFAULTS["deepseek"])
         if self._backend == "ollama":
             return os.getenv("OLLAMA_MODEL", _BACKEND_DEFAULTS["ollama"])
         return _BACKEND_DEFAULTS[self._backend]
@@ -261,6 +272,18 @@ class FixGenerator:
     def _call_llm(self, user_prompt: str, temperature: float = 0.2) -> str:
         if self._backend == "anthropic":
             return self._call_anthropic(user_prompt, temperature)
+        if self._backend == "deepseek":
+            return self._call_openai_compatible(
+                user_prompt,
+                base_url=os.getenv("DEEPSEEK_BASE_URL", DEEPSEEK_BASE_URL),
+                api_key=os.environ["DEEPSEEK_API_KEY"],
+                temperature=temperature,
+                extra_body={
+                    "thinking": {
+                        "type": os.getenv("DEEPSEEK_THINKING", "disabled")
+                    }
+                },
+            )
         if self._backend == "openrouter":
             return self._call_openai_compatible(
                 user_prompt,
@@ -301,6 +324,7 @@ class FixGenerator:
         api_key: str,
         temperature: float = 0.2,
         extra_headers: dict | None = None,
+        extra_body: dict | None = None,
     ) -> str:
         from openai import OpenAI
         client = OpenAI(base_url=base_url, api_key=api_key)
@@ -314,6 +338,8 @@ class FixGenerator:
         )
         if extra_headers:
             kwargs["extra_headers"] = extra_headers
+        if extra_body:
+            kwargs["extra_body"] = extra_body
         response = client.chat.completions.create(**kwargs)
         return response.choices[0].message.content or ""
 
@@ -336,12 +362,26 @@ class FixGenerator:
     # ------------------------------------------------------------------
 
     def _parse_response(self, raw: str) -> list[str]:
-        """Extract diff block from LLM response."""
-        diff_match = re.search(r"(---\s+.+?(?=\Z|\n\n\n))", raw, re.DOTALL)
-        if diff_match:
-            return [diff_match.group(1).strip()]
-        if raw.strip():
-            return [raw.strip()]
+        """Extract a unified diff from model output, tolerating markdown fences."""
+        text = raw.strip()
+        fenced = re.search(r"```(?:diff|patch)?\s*(.*?)```", text, re.DOTALL | re.IGNORECASE)
+        if fenced:
+            text = fenced.group(1).strip()
+
+        lines = text.splitlines()
+        start = next((i for i, line in enumerate(lines) if line.startswith("--- ")), None)
+        if start is None:
+            return [text] if text else []
+
+        diff_lines = []
+        for line in lines[start:]:
+            if line.strip().startswith("```"):
+                break
+            diff_lines.append(line)
+
+        patch = "\n".join(diff_lines).strip()
+        if patch:
+            return [patch]
         return []
 
     # ------------------------------------------------------------------

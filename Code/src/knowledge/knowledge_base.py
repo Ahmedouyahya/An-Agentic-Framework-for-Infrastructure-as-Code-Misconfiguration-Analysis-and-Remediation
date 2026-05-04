@@ -2,7 +2,8 @@
 Knowledge Base
 --------------
 Builds and manages a vector store populated from:
-  - The 62-category IaC security smell taxonomy (War et al., 2025)
+  - The War et al. 62-category IaC security smell taxonomy, extended
+    in this implementation to 65 local entries
   - CWE descriptions
   - Fix examples and audit reports
 

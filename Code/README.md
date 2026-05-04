@@ -13,13 +13,14 @@
 3. [Setup](#3-setup)
 4. [Directory Structure](#4-directory-structure)
 5. [Running the Tests](#5-running-the-tests)
-6. [Running Each Module Individually](#6-running-each-module-individually)
-7. [Running the Full Pipeline](#7-running-the-full-pipeline)
-8. [Running the Evaluation](#8-running-the-evaluation)
-9. [Environment Variables Reference](#9-environment-variables-reference)
-10. [API Backends Supported](#10-api-backends-supported)
-11. [Dataset Overview](#11-dataset-overview)
-12. [Troubleshooting](#12-troubleshooting)
+6. [Quick Demo CLI](#6-quick-demo-cli)
+7. [Running Each Module Individually](#7-running-each-module-individually)
+8. [Running the Full Pipeline](#8-running-the-full-pipeline)
+9. [Running the Evaluation](#9-running-the-evaluation)
+10. [Environment Variables Reference](#10-environment-variables-reference)
+11. [API Backends Supported](#11-api-backends-supported)
+12. [Dataset Overview](#12-dataset-overview)
+13. [Troubleshooting](#13-troubleshooting)
 
 ---
 
@@ -28,8 +29,8 @@
 This framework takes an IaC script (Terraform, Ansible, Kubernetes, or Dockerfile) and:
 
 1. **Detects** security smells using Checkov + heuristic rules
-2. **Retrieves** relevant fixes from a RAG knowledge base (65-entry taxonomy)
-3. **Generates** a patch using an LLM (OpenAI / Anthropic / OpenRouter / local via Ollama)
+2. **Retrieves** relevant fixes from a RAG knowledge base (War et al. 62-category taxonomy, extended locally to 65 entries)
+3. **Generates** a patch using an LLM (DeepSeek / OpenAI / Anthropic / OpenRouter / local via Ollama)
 4. **Validates** the patch by re-running Checkov before/after
 5. **Formats** a unified diff with CWE-referenced explanations
 
@@ -40,7 +41,7 @@ IaC Script
 [Contextual Analyzer]  — detects tool type + smells (Checkov + heuristics)
     │
     ▼
-[Knowledge Retriever]  — RAG query against 65-smell ChromaDB vector store
+[Knowledge Retriever]  — RAG query against the ChromaDB vector store
     │
     ▼
 [Fix Generator]        — LLM generates unified diff patch
@@ -83,7 +84,7 @@ patch --version
 ### Step 1 — Clone or navigate to the project
 
 ```bash
-cd /home/ahmedouyahye/Desktop/PFE/Code
+cd Code
 ```
 
 ### Step 2 — Create and activate the virtual environment
@@ -104,26 +105,28 @@ pip install checkov pytest pytest-cov
 
 ### Step 4 — Configure your API key
 
-Open `.env` and set your key and base URL:
+Create `.env` locally and set your provider key:
 
 ```bash
-# .env (already created — just edit the values)
-OPENCODE_API_KEY=sk-your-key-here
-OPENCODE_API_BASE=https://api.your-provider.com/v1   # set the correct URL for your service
+# .env (never commit this file)
+DEEPSEEK_API_KEY=your-key-here
+DEEPSEEK_MODEL=deepseek-v4-flash
+DEEPSEEK_BASE_URL=https://api.deepseek.com
 ```
 
-**Common base URLs by provider:**
+**Common variables by provider:**
 
-| Provider | OPENCODE_API_BASE |
-|----------|-------------------|
-| OpenAI | `https://api.openai.com/v1` |
-| OpenRouter | `https://openrouter.ai/api/v1` |
-| Groq | `https://api.groq.com/openai/v1` |
-| Together AI | `https://api.together.xyz/v1` |
-| Ollama (local) | `http://localhost:11434/v1` |
+| Provider | Variables |
+|----------|-----------|
+| DeepSeek | `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL`, `DEEPSEEK_BASE_URL` |
+| OpenAI | `OPENAI_API_KEY` |
+| OpenRouter | `OPENROUTER_API_KEY` |
+| Anthropic | `ANTHROPIC_API_KEY` |
+| Ollama (local) | `OLLAMA_MODEL`, `OLLAMA_BASE_URL` |
 
 The generator also reads these standard env vars directly:
 - `ANTHROPIC_API_KEY` → uses Anthropic Claude
+- `DEEPSEEK_API_KEY` → uses DeepSeek
 - `OPENROUTER_API_KEY` → uses OpenRouter (many free models)
 - `OPENAI_API_KEY` → uses OpenAI
 
@@ -144,7 +147,7 @@ Query: Terraform — hardcoded credential + overly permissive CIDR
 [Doc 1] CWE=CWE-798 ...
 [Doc 2] CWE=CWE-732 ...
 
-STEP 3 — Testing OpenCode API connection
+STEP 3 — Testing LLM backend connection
 ✓ Connected to API at: https://...
 ✓ API response: IaC security test OK
 ```
@@ -182,7 +185,7 @@ Code/
 │   ├── kubernetes/                    # 3 insecure Kubernetes manifests
 │   ├── docker/                        # 5 insecure Dockerfiles
 │   ├── taxonomy/
-│   │   └── smells_taxonomy.json       # 65 IaC security smells (War et al. 2025)
+│   │   └── smells_taxonomy.json       # 62 War et al. categories + 3 local extension entries
 │   └── metadata.json                  # Ground-truth oracle (79 annotated smells)
 │
 ├── tests/
@@ -209,7 +212,7 @@ All tests use pytest. Activate the venv first.
 
 ```bash
 source .venv/bin/activate
-cd /home/ahmedouyahye/Desktop/PFE/Code
+cd Code
 ```
 
 ### Run all tests
@@ -250,17 +253,75 @@ python -m pytest tests/test_dataset.py::TestTaxonomyIntegrity::test_taxonomy_has
 
 | File | Module | Tests | Requires Checkov |
 |------|--------|-------|-----------------|
-| `test_analyzer.py` | Contextual Analyzer | 10 | Optional (falls back to heuristics) |
-| `test_formatter.py` | Patch Formatter | 8 | No |
-| `test_validator.py` | External Validator | 7 | Yes |
+| `test_analyzer.py` | Contextual Analyzer | 12 | Optional (falls back to heuristics) |
+| `test_formatter.py` | Patch Formatter | 10 | No |
+| `test_validator.py` | External Validator | 8 | Yes |
 | `test_dataset.py` | Dataset + Taxonomy | 33 | Yes |
-| **Total** | | **58** | |
+| **Total** | | **63** | |
 
-All 58 tests pass on Python 3.13, Checkov 3.2.513.
+All 63 tests pass on Python 3.13, Checkov 3.2.513.
 
 ---
 
-## 6. Running Each Module Individually
+## 6. Quick Demo CLI
+
+For the final presentation, the most reliable demo path is the local analyzer.
+It does not require an API key and shows the project value immediately:
+
+```bash
+cd Code
+source .venv/bin/activate
+
+# Human-readable analysis
+python3 scripts/run_agent.py analyze dataset/docker/Dockerfile.node_api_insecure
+
+# JSON output for screenshots, scripts, or result tables
+python3 scripts/run_agent.py analyze dataset/ansible/insecure_hardened.yml --json
+```
+
+The analyzer combines Checkov findings with project heuristics. The heuristics
+cover smells that Checkov may miss, including SSH password authentication,
+curl/wget piped to a shell, SETUID/SETGID container binaries, passwordless sudo,
+and unpinned `latest` base images.
+
+To run the full agentic loop, configure one LLM backend first:
+
+```bash
+# Example: DeepSeek
+export DEEPSEEK_API_KEY="your-key-here"
+export DEEPSEEK_MODEL="deepseek-v4-flash"
+
+# Or OpenAI
+export OPENAI_API_KEY="sk-..."
+
+# Or local Ollama
+export OLLAMA_MODEL="iac-fixer"
+export OLLAMA_BASE_URL="http://localhost:11434/v1"
+```
+
+Then run:
+
+```bash
+python3 scripts/run_agent.py full dataset/terraform/insecure_s3.tf --model deepseek-v4-flash
+python3 scripts/run_agent.py full dataset/docker/Dockerfile.node_api_insecure --json
+```
+
+For a focused live demo, start with a small target set:
+
+```bash
+python3 scripts/run_agent.py full dataset/terraform/insecure_s3.tf \
+  --model deepseek-v4-flash \
+  --no-self-consistency \
+  --max-smells 3
+```
+
+The full mode builds/uses the ChromaDB knowledge base, retrieves relevant
+taxonomy entries, asks the selected model for patches, validates candidates with
+available scanners, and prints the validated patch plus explanation.
+
+---
+
+## 7. Running Each Module Individually
 
 You can test each module in isolation using the Python REPL or a script.
 
@@ -356,7 +417,7 @@ load_dotenv('.env')
 sys.path.insert(0, 'src')
 from generator.fix_generator import FixGenerator
 
-# Uses OPENROUTER_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY from env
+# Uses DEEPSEEK_API_KEY / OPENROUTER_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY from env
 generator = FixGenerator()  # auto-detects backend
 
 patches = generator.generate(
@@ -370,13 +431,13 @@ for patch in patches:
 
 To use a specific model:
 ```python
+# DeepSeek
+generator = FixGenerator(model='deepseek-v4-flash')
+
 # Free model via OpenRouter
 generator = FixGenerator(model='meta-llama/llama-3.1-8b-instruct:free')
 
-# MiniMax via OpenRouter
-generator = FixGenerator(model='minimax/minimax-01')
-
-# Local Ollama model (set OPENAI_API_KEY=ollama and base URL in .env)
+# Local Ollama model
 generator = FixGenerator(model='qwen2.5-coder:3b')
 ```
 
@@ -429,7 +490,7 @@ print(result['explanation'])
 
 ---
 
-## 7. Running the Full Pipeline
+## 8. Running the Full Pipeline
 
 This wires all 6 modules together through the Central Agent.
 
@@ -493,7 +554,7 @@ for f in files:
 
 ---
 
-## 8. Running the Evaluation
+## 9. Running the Evaluation
 
 The evaluation script measures 18 metrics across all dataset files.
 
@@ -529,27 +590,40 @@ bash scripts/run_checkov.sh
 
 ---
 
-## 9. Environment Variables Reference
+## 10. Environment Variables Reference
 
 All variables are stored in `Code/.env`. Never commit this file.
 
 | Variable | Purpose | Example |
 |----------|---------|---------|
-| `OPENCODE_API_KEY` | Your API key | `sk-abc123...` |
-| `OPENCODE_API_BASE` | API endpoint URL | `https://openrouter.ai/api/v1` |
+| `DEEPSEEK_API_KEY` | DeepSeek API key | `sk-...` |
+| `DEEPSEEK_MODEL` | DeepSeek model name | `deepseek-v4-flash` |
+| `DEEPSEEK_BASE_URL` | DeepSeek OpenAI-compatible endpoint | `https://api.deepseek.com` |
 | `ANTHROPIC_API_KEY` | Anthropic Claude key | `sk-ant-...` |
 | `OPENROUTER_API_KEY` | OpenRouter key (free models available) | `sk-or-v1-...` |
-| `MINIMAX_API_KEY` | MiniMax direct API key | `...` |
 | `OPENAI_API_KEY` | OpenAI key | `sk-...` |
-| `OLLAMA_BASE_URL` | Local Ollama server | `http://localhost:11434` |
+| `OLLAMA_MODEL` | Local Ollama model | `gemma3:4b` |
+| `OLLAMA_BASE_URL` | Local Ollama server | `http://localhost:11434/v1` |
 | `CHROMA_PERSIST_DIR` | Where ChromaDB stores data | `./chroma_db` |
 
 The `FixGenerator` auto-detects the backend in this priority order:
-`ANTHROPIC_API_KEY` → `OPENROUTER_API_KEY` → `MINIMAX_API_KEY` → `OPENAI_API_KEY`
+`ANTHROPIC_API_KEY` → `DEEPSEEK_API_KEY` → `OPENROUTER_API_KEY` → `OLLAMA_MODEL` → `OPENAI_API_KEY`
 
 ---
 
-## 10. API Backends Supported
+## 11. API Backends Supported
+
+### DeepSeek
+
+```bash
+# .env
+DEEPSEEK_API_KEY=your-key
+DEEPSEEK_MODEL=deepseek-v4-flash
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+```
+
+Use `deepseek-v4-flash` for fast and economical tests. You can switch to
+`deepseek-v4-pro` by changing `DEEPSEEK_MODEL`.
 
 ### OpenRouter (recommended — free models available)
 
@@ -588,8 +662,8 @@ curl -fsSL https://ollama.com/install.sh | sh
 ollama pull qwen2.5-coder:3b
 
 # 3. Set in .env
-OPENAI_API_KEY=ollama
-OPENCODE_API_BASE=http://localhost:11434/v1
+OLLAMA_MODEL=qwen2.5-coder:3b
+OLLAMA_BASE_URL=http://localhost:11434/v1
 ```
 
 ```python
@@ -600,7 +674,7 @@ FixGenerator("phi4-mini")
 
 ---
 
-## 11. Dataset Overview
+## 12. Dataset Overview
 
 The dataset contains 16 insecure IaC files with 79 annotated security smells.
 
@@ -612,10 +686,15 @@ The dataset contains 16 insecure IaC files with 79 annotated security smells.
 | Docker | 5 | 31 | Checkov |
 | **Total** | **16** | **79** | |
 
-**Taxonomy:** `dataset/taxonomy/smells_taxonomy.json` — 65 smell types across 3 categories:
-- **Security** (49 entries) — credentials, permissions, privilege escalation
-- **Configuration Data** (10 entries) — missing configs, deprecated settings
-- **Dependency** (6 entries) — unpinned images, supply chain risks
+**Taxonomy:** `dataset/taxonomy/smells_taxonomy.json` — 65 implementation entries across 3 categories. The base reference is the 62-category taxonomy of War et al. (2025); this project adds 3 local extension entries for benchmark coverage:
+- `SS-063` — SSH Password Authentication Enabled
+- `SS-064` — SETUID/SETGID Binary in Container
+- `SS-065` — Remote Script Execution Without Integrity Check
+
+Current category counts:
+- **Security** (52 entries) — credentials, permissions, privilege escalation
+- **Configuration Data** (8 entries) — missing configs, deprecated settings
+- **Dependency** (5 entries) — unpinned images, supply chain risks
 
 > This `dataset/` folder is the hand-crafted evaluation benchmark. The
 > large-scale scraped corpus used for fine-tuning (33,667 records) is produced
@@ -624,7 +703,7 @@ The dataset contains 16 insecure IaC files with 79 annotated security smells.
 
 ---
 
-## 12. Troubleshooting
+## 13. Troubleshooting
 
 ### `ModuleNotFoundError: No module named 'chromadb'`
 
@@ -650,7 +729,7 @@ checkov --file dataset/kubernetes/insecure_deployment.yaml --framework kubernete
 
 ### API returns 401 Unauthorized
 
-The API key or base URL is wrong. Open `.env` and check `OPENCODE_API_BASE` matches your provider.
+The API key or base URL is wrong. Open `.env` and check the variables for your provider.
 
 ### ChromaDB error on second run: `Collection already exists`
 

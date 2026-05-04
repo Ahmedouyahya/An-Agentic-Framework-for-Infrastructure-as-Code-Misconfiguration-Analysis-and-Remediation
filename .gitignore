@@ -27,6 +27,9 @@ Code/chroma_db/
 *.log
 *.out
 *.toc
+*.fdb_latexmk
+*.fls
+*.ist
 *.nav
 *.snm
 *.vrb
@@ -38,12 +41,13 @@ Code/tests/__pycache__/
 Code/scraping/__pycache__/
 Code/src/**/__pycache__/
 
-# Claude internal
+# Local assistant/tooling files
 CLAUDE.md
 .claude/
 .sixth/
 .codex
 .codex/
+.agents/
 
 # Training artifacts (large or derived)
 Code/training/lora_out/
@@ -51,6 +55,7 @@ Code/training/*.zip
 
 # Derived evaluation output
 Code/scripts/evaluation_results.json
+Code/scripts/chromadb_full_data.json
 
 # Local sandbox / empty placeholders
 Code/scraping/.test/
@@ -61,3 +66,6 @@ datasets/
 
 # HuggingFace dataset staging (nested git repo, 300+ MB)
 iac-security-dataset/
+
+
+Notes and whats next/
