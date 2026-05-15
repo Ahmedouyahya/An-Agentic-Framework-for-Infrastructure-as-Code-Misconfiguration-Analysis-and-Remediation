@@ -285,7 +285,7 @@ Code/
 │   ├── test_validator.py              # Checkov output validation (7 tests)
 │   ├── test_analyzer.py               # Contextual Analyzer module (10 tests)
 │   ├── test_formatter.py              # Patch Formatter module (8 tests)
-│   └── test_dataset.py               # Dataset + taxonomy integrity (23 tests)
+│   └── test_dataset.py                # Dataset + taxonomy integrity (23 tests)
 ├── scripts/
 │   ├── evaluate.py                    # 18-metric evaluation script
 │   ├── evaluation_results.json        # Latest Config A results

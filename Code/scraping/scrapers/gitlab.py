@@ -22,6 +22,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import random
 import time
 from dataclasses import asdict
@@ -48,7 +49,8 @@ logger = logging.getLogger(__name__)
 GITLAB_RPS = 4.0                  # requests per second
 MAX_CONCURRENCY = 8
 PER_PAGE = 50                     # GitLab max per search page
-MAX_PAGES_PER_QUERY = 4           # ~200 commits per query
+MAX_PROJECT_PAGES = int(os.getenv("GITLAB_PROJECT_PAGES", "3"))
+MAX_COMMIT_PAGES = int(os.getenv("GITLAB_COMMIT_PAGES", "2"))
 SEARCH_TIMEOUT = aiohttp.ClientTimeout(total=25, connect=10, sock_read=20)
 
 _IAC_EXTENSIONS = {".tf", ".tfvars", ".yml", ".yaml", ".json", ".dockerfile"}
@@ -140,6 +142,11 @@ _PROJECT_SEARCH_TERMS = [
     "dockerfile", "cloudformation", "pulumi",
     "infrastructure as code", "iac security", "devsecops",
     "terraform module", "kubernetes manifest",
+    "k8s manifests", "helm charts", "terraform aws", "terraform azure",
+    "terraform gcp", "ansible playbook", "ansible role", "docker compose",
+    "cloudformation template", "serverless framework", "terragrunt",
+    "kustomize", "openshift template", "security hardening",
+    "checkov", "kics", "tfsec", "terrascan", "trivy config",
 ]
 
 
@@ -312,6 +319,8 @@ async def run(
     output_path: Path,
     terms: Optional[List[str]] = None,
     max_terms: Optional[int] = None,
+    project_pages: int = MAX_PROJECT_PAGES,
+    commit_pages: int = MAX_COMMIT_PAGES,
 ) -> Dict[str, int]:
     if not GITLAB_TOKEN:
         raise RuntimeError("GITLAB_TOKEN not set — aborting.")
@@ -335,13 +344,13 @@ async def run(
             for term in (terms if max_terms is None else terms[:max_terms]):
                 stats["terms"] += 1
                 logger.info("gitlab project search: %s", term)
-                async for project in _search_projects(session, term):
+                async for project in _search_projects(session, term, max_pages=project_pages):
                     pid = project.get("id")
                     if not pid or pid in seen_projects:
                         continue
                     seen_projects.add(pid)
                     stats["projects_seen"] += 1
-                    async for commit in _iter_project_commits(session, pid):
+                    async for commit in _iter_project_commits(session, pid, max_pages=commit_pages):
                         stats["commits_seen"] += 1
                         recs = await _process_commit(session, commit, project)
                         for r in recs:
@@ -366,8 +375,17 @@ def main() -> None:
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--max-terms", type=int, default=None,
                    help="Limit how many project-search terms to run (for testing)")
+    p.add_argument("--project-pages", type=int, default=MAX_PROJECT_PAGES,
+                   help="Project-search pages per term")
+    p.add_argument("--commit-pages", type=int, default=MAX_COMMIT_PAGES,
+                   help="Commit-list pages per project")
     args = p.parse_args()
-    stats = asyncio.run(run(args.output, max_terms=args.max_terms))
+    stats = asyncio.run(run(
+        args.output,
+        max_terms=args.max_terms,
+        project_pages=args.project_pages,
+        commit_pages=args.commit_pages,
+    ))
     logger.info("GitLab scrape complete: %s", json.dumps(stats))
 
 

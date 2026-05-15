@@ -29,6 +29,8 @@ def _before_is_real(rec: Dict[str, Any]) -> bool:
     cb = rec.get("code_before") or ""
     if q in ("api", "exact", "partial"):
         return True
+    if q == "new_file":
+        return bool(cb and len(cb) > 20)
     if q in ("unavailable", "heuristic", "new_file"):
         return False
     # legacy v1 records — no quality field, infer from content

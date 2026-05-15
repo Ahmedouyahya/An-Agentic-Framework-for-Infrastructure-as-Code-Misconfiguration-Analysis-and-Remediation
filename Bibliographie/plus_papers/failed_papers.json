@@ -1,0 +1,17 @@
+[
+  {
+    "arxiv_id": "?",
+    "expected": "Adaptive RAG",
+    "category": "rag_variants"
+  },
+  {
+    "arxiv_id": "?",
+    "expected": "HyDE",
+    "category": "rag_variants"
+  },
+  {
+    "arxiv_id": "?",
+    "expected": "Generate rather than Retrieve",
+    "category": "rag_variants"
+  }
+]

@@ -421,92 +421,56 @@
       \begin{center}
         \begin{tikzpicture}[
             font=\scriptsize,
-            arr/.style={-{Latex[length=2mm]}, line width=0.7pt},
+            arr/.style={-{Latex[length=2mm]}, line width=0.75pt},
+            mat/.style={rounded corners=2pt, line width=0.6pt,
+                        align=center, inner sep=2pt}
           ]
-          % --- input ---
-          \node[font=\scriptsize\bfseries] (x) at (0,0) {$x$};
+          \node[font=\scriptsize\bfseries] (x) at (5.12,0) {$x$};
+          \coordinate (fork) at (4.35,0);
 
-          % --- fork point (invisible) ---
-          \coordinate[right=0.9cm of x] (fork);
+          \node[mat, draw=sfaxblue!85, fill=sfaxblue!12,
+                minimum width=1.25cm, minimum height=0.82cm,
+                font=\scriptsize\bfseries] (w0) at (2.95,0.82)
+                {\faLock~$W_0$};
 
-          % --- frozen W0 (large ~square, d×k both big) ---
-          \node[draw=sfaxblue!85, fill=sfaxblue!12, rounded corners=2pt,
-                minimum width=1.45cm, minimum height=1.0cm,
-                font=\scriptsize\bfseries, inner sep=4pt,
-                right=0.5cm of fork, yshift=0.95cm] (w0) {\faLock~$W_0$};
+          \node[mat, draw=moduleorange!80, fill=moduleorange!12,
+                minimum width=0.42cm, minimum height=1.05cm,
+                font=\scriptsize\bfseries] (B) at (2.35,-0.78) {$B$};
 
-          % --- A: wide pancake (r×k, r is tiny) ---
-          \node[draw=moduleorange!80, fill=moduleorange!12, rounded corners=2pt,
-                minimum width=1.8cm, minimum height=0.30cm,
-                font=\scriptsize\bfseries, inner sep=2pt,
-                right=1.1cm of fork, yshift=-0.75cm] (a) {$A$};
+          \node[mat, draw=moduleorange!80, fill=moduleorange!12,
+                minimum width=1.38cm, minimum height=0.34cm,
+                font=\scriptsize\bfseries] (A) at (3.65,-0.78) {$A$};
 
-          % --- B: tall pillar (d×r, r is tiny) ---
-          \node[draw=moduleorange!80, fill=moduleorange!12, rounded corners=2pt,
-                minimum width=0.38cm, minimum height=1.15cm,
-                font=\scriptsize\bfseries, inner sep=2pt,
-                right=0.15cm of a] (b) {$B$};
-
-          % --- dashed box around A,B ---
           \begin{scope}[on background layer]
             \node[draw=moduleorange!70, dashed, rounded corners=3pt,
-                  inner xsep=4pt, inner ysep=7pt,
-                  fit=(a)(b),
-                  label={[text=moduleorange!85,font=\tiny\bfseries]south:trainable}] {};
+                  inner xsep=5pt, inner ysep=8pt,
+                  fit=(A)(B)] {};
           \end{scope}
 
-          % --- sum circle ---
           \node[circle, draw=sfaxdark, fill=white, inner sep=0pt,
-                minimum size=0.50cm, font=\bfseries,
-                right=0.45cm of b] (plus) {$\Sigma$};
+                minimum size=0.48cm, font=\bfseries] (plus) at (0.95,0)
+                {$\Sigma$};
+          \node[font=\scriptsize\bfseries] (h) at (0.18,0) {$h$};
 
-          % --- output ---
-          \node[font=\scriptsize\bfseries, right=0.3cm of plus] (h) {$h$};
+          \draw[arr, sfaxdark] (x.west) -- (fork);
+          \draw[arr, sfaxblue!70] (fork) |- (w0.east);
+          \draw[arr, sfaxblue!70] (w0.west) -| (plus.north);
+          \draw[arr, moduleorange!80] (fork) |- (A.east);
+          \draw[arr, moduleorange!80] (A.west) -- (B.east);
+          \draw[arr, moduleorange!80] (B.west) -| (plus.south);
+          \draw[arr, sfaxdark] (plus.west) -- (h.east);
 
-          % --- arrows ---
-          \draw[arr, sfaxblue!70] (x.east) -- (fork) |- (w0.west);
-          \draw[arr, sfaxblue!70] (w0.east) -| (plus.north);
-          \draw[arr, moduleorange!80] (x.east) -- (fork) |- (a.west);
-          \draw[arr, moduleorange!80] (a.east) -- (b.west);
-          \draw[arr, moduleorange!80] (b.east) -- (plus.west);
-          \draw[arr, sfaxdark] (plus.east) -- (h.west);
-
-          % --- dimension labels on matrices ---
+          \node[font=\tiny\bfseries, text=moduleorange!85] at (3.25,-0.40)
+                {trainable};
           \node[font=\tiny\itshape, text=sfaxblue!75, below=0.02cm of w0]
-            {$\mathbb{R}^{d \times k}$};
+                {$d \times k$};
+          \node[font=\tiny\itshape, text=moduleorange!85, below=0.14cm of B]
+                {$d \times r$};
+          \node[font=\tiny\itshape, text=moduleorange!85, below=0.14cm of A]
+                {$r \times k$};
 
-          % --- dimension callouts for the low-rank bottleneck ---
-          % k above A (the wide dimension of the pancake)
-          \draw[moduleorange!60, line width=0.4pt,
-                {Latex[length=1.5mm]}-{Latex[length=1.5mm]}]
-                ($(a.north west)+(0,0.15)$) -- ($(a.north east)+(0,0.15)$);
-          \node[font=\tiny, text=moduleorange!80, above=0.02cm]
-                at ($(a.north)!0.5!(a.north east)+(0,0.15)$) {$k$};
-
-          % r above B (the narrow dimension)
-          \draw[moduleorange!60, line width=0.4pt,
-                {Latex[length=1.5mm]}-{Latex[length=1.5mm]}]
-                ($(b.north west)+(-0.05,0.15)$) -- ($(b.north east)+(0.05,0.15)$);
-          \node[font=\tiny, text=moduleorange!80, above=0.02cm]
-                at ($(b.north)!0.5!(b.north east)+(0,0.15)$) {$r$};
-
-          % d on the left side of W0
-          \draw[sfaxblue!50, line width=0.4pt,
-                {Latex[length=1.5mm]}-{Latex[length=1.5mm]}]
-                ($(w0.north west)+(-0.15,0)$) -- ($(w0.south west)+(-0.15,0)$);
-          \node[font=\tiny, text=sfaxblue!70, left=0.02cm]
-                at ($(w0.west)!0.5!(w0.south west)+(-0.15,0)$) {$d$};
-
-          % d on the right side of B
-          \draw[moduleorange!60, line width=0.4pt,
-                {Latex[length=1.5mm]}-{Latex[length=1.5mm]}]
-                ($(b.north east)+(0.10,0)$) -- ($(b.south east)+(0.10,0)$);
-          \node[font=\tiny, text=moduleorange!80, right=0.02cm]
-                at ($(b.east)!0.5!(b.south east)+(0.10,0)$) {$d$};
-
-          % --- key formula ---
-          \node[font=\tiny, text=sfaxdark, below=1.35cm of a, align=center]
-            {$W = W_0 + BA,\qquad r \ll d{,}k$};
+          \node[font=\tiny, text=sfaxdark, align=center] at (2.95,-2.20)
+                {$h = W_0x + \frac{\alpha}{r}BAx$\\[-0.15em]$r \ll d{,}k$};
         \end{tikzpicture}
       \end{center}
     \end{column}

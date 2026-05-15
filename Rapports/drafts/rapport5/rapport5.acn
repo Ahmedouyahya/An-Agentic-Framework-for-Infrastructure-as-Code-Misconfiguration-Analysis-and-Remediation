@@ -11,10 +11,11 @@
 \glossaryentry{LLM?\glossentry{llm}|setentrycounter[]{page}"\glsnumberformat}{7}
 \glossaryentry{CWE?\glossentry{cwe}|setentrycounter[]{page}"\glsnumberformat}{7}
 \glossaryentry{IaC?\glossentry{iac}|setentrycounter[]{page}"\glsnumberformat}{8}
+\glossaryentry{IaC?\glossentry{iac}|setentrycounter[]{page}"\glsnumberformat}{8}
 \glossaryentry{API?\glossentry{api}|setentrycounter[]{page}"\glsnumberformat}{8}
 \glossaryentry{GGUF?\glossentry{gguf}|setentrycounter[]{page}"\glsnumberformat}{8}
-\glossaryentry{QLoRA?\glossentry{qlora}|setentrycounter[]{page}"\glsnumberformat}{8}
-\glossaryentry{LoRA?\glossentry{lora}|setentrycounter[]{page}"\glsnumberformat}{8}
+\glossaryentry{QLoRA?\glossentry{qlora}|setentrycounter[]{page}"\glsnumberformat}{9}
+\glossaryentry{LoRA?\glossentry{lora}|setentrycounter[]{page}"\glsnumberformat}{9}
 \glossaryentry{LoRA?\glossentry{lora}|setentrycounter[]{page}"\glsnumberformat}{9}
 \glossaryentry{QLoRA?\glossentry{qlora}|setentrycounter[]{page}"\glsnumberformat}{9}
 \glossaryentry{LoRA?\glossentry{lora}|setentrycounter[]{page}"\glsnumberformat}{10}

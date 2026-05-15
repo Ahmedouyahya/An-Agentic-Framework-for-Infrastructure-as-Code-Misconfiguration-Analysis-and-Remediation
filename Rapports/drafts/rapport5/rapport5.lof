@@ -1,15 +1,16 @@
 \babel@toc {english}{}\relax 
 \addvspace {10\p@ }
+\contentsline {figure}{\numberline {1.1}{\ignorespaces Historical positioning of the project relative to IaC security and RAG research.}}{8}{figure.caption.7}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {2.1}{\ignorespaces LoRA decomposition}}{10}{figure.caption.7}%
-\contentsline {figure}{\numberline {2.2}{\ignorespaces LoRA trainable fraction}}{11}{figure.caption.8}%
-\contentsline {figure}{\numberline {2.3}{\ignorespaces Base-weight memory}}{12}{figure.caption.10}%
-\contentsline {figure}{\numberline {2.4}{\ignorespaces Attention memory scaling}}{13}{figure.caption.11}%
-\addvspace {10\p@ }
-\addvspace {10\p@ }
-\addvspace {10\p@ }
+\contentsline {figure}{\numberline {2.1}{\ignorespaces LoRA decomposition}}{10}{figure.caption.8}%
+\contentsline {figure}{\numberline {2.2}{\ignorespaces LoRA trainable fraction}}{11}{figure.caption.9}%
+\contentsline {figure}{\numberline {2.3}{\ignorespaces Base-weight memory}}{12}{figure.caption.11}%
+\contentsline {figure}{\numberline {2.4}{\ignorespaces Attention memory scaling}}{13}{figure.caption.12}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {8.1}{\ignorespaces From adapter to deployable Ollama model.}}{32}{figure.caption.20}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {8.1}{\ignorespaces From adapter to deployable Ollama model.}}{32}{figure.caption.21}%
 \addvspace {10\p@ }

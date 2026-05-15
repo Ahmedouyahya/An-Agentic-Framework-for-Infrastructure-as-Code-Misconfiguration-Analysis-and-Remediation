@@ -1,0 +1,530 @@
+[
+  {
+    "title": "Retrieval-Augmented Generation for Knowledge-Intensive",
+    "arxiv_id": "2005.11401",
+    "filename": "Retrieval-Augmented_Generation_for_Knowledge-Intensive_Lewis_2020.pdf",
+    "category": "rag_variants",
+    "year": 2020,
+    "authors": [
+      "Lewis"
+    ],
+    "url": "https://arxiv.org/pdf/2005.11401"
+  },
+  {
+    "title": "From Local to Global: A Graph RAG",
+    "arxiv_id": "2404.16130",
+    "filename": "From_Local_to_Global_A_Graph_RAG_Edge_2024.pdf",
+    "category": "rag_variants",
+    "year": 2024,
+    "authors": [
+      "Edge"
+    ],
+    "url": "https://arxiv.org/pdf/2404.16130"
+  },
+  {
+    "title": "Speculative RAG",
+    "arxiv_id": "2407.08223",
+    "filename": "Speculative_RAG_Wang_2024.pdf",
+    "category": "rag_variants",
+    "year": 2024,
+    "authors": [
+      "Wang"
+    ],
+    "url": "https://arxiv.org/pdf/2407.08223"
+  },
+  {
+    "title": "Query Rewriting",
+    "arxiv_id": "2305.14283",
+    "filename": "Query_Rewriting_Ma_2023.pdf",
+    "category": "rag_variants",
+    "year": 2023,
+    "authors": [
+      "Ma"
+    ],
+    "url": "https://arxiv.org/pdf/2305.14283"
+  },
+  {
+    "title": "Active Retrieval Augmented Generation",
+    "arxiv_id": "2305.06983",
+    "filename": "Active_Retrieval_Augmented_Generation_Jiang_2023.pdf",
+    "category": "rag_variants",
+    "year": 2023,
+    "authors": [
+      "Jiang"
+    ],
+    "url": "https://arxiv.org/pdf/2305.06983"
+  },
+  {
+    "title": "REPLUG",
+    "arxiv_id": "2301.12652",
+    "filename": "REPLUG_Shi_2023.pdf",
+    "category": "rag_variants",
+    "year": 2023,
+    "authors": [
+      "Shi"
+    ],
+    "url": "https://arxiv.org/pdf/2301.12652"
+  },
+  {
+    "title": "RA-DIT",
+    "arxiv_id": "2310.01352",
+    "filename": "RA-DIT_Lin_2023.pdf",
+    "category": "rag_variants",
+    "year": 2023,
+    "authors": [
+      "Lin"
+    ],
+    "url": "https://arxiv.org/pdf/2310.01352"
+  },
+  {
+    "title": "RECOMP",
+    "arxiv_id": "2310.04408",
+    "filename": "RECOMP_Xu_2023.pdf",
+    "category": "rag_variants",
+    "year": 2023,
+    "authors": [
+      "Xu"
+    ],
+    "url": "https://arxiv.org/pdf/2310.04408"
+  },
+  {
+    "title": "RAPTOR",
+    "arxiv_id": "2401.18059",
+    "filename": "RAPTOR_Sarthi_2024.pdf",
+    "category": "rag_variants",
+    "year": 2024,
+    "authors": [
+      "Sarthi"
+    ],
+    "url": "https://arxiv.org/pdf/2401.18059"
+  },
+  {
+    "title": "In-Context Retrieval-Augmented Language Models",
+    "arxiv_id": "2302.00083",
+    "filename": "In-Context_Retrieval-Augmented_Language_Models_Ram_2023.pdf",
+    "category": "rag_variants",
+    "year": 2023,
+    "authors": [
+      "Ram"
+    ],
+    "url": "https://arxiv.org/pdf/2302.00083"
+  },
+  {
+    "title": "Search-in-the-Chain",
+    "arxiv_id": "2304.14732",
+    "filename": "Search-in-the-Chain_Xu_2023.pdf",
+    "category": "rag_variants",
+    "year": 2023,
+    "authors": [
+      "Xu"
+    ],
+    "url": "https://arxiv.org/pdf/2304.14732"
+  },
+  {
+    "title": "Retrieval-Augmented Generation for Large Language Models: A Survey",
+    "arxiv_id": "2312.10997",
+    "filename": "Retrieval-Augmented_Generation_for_Large_Language_Models_A_Gao_2023.pdf",
+    "category": "rag_variants",
+    "year": 2023,
+    "authors": [
+      "Gao"
+    ],
+    "url": "https://arxiv.org/pdf/2312.10997"
+  },
+  {
+    "title": "Dense X Retrieval",
+    "arxiv_id": "2312.00886",
+    "filename": "Dense_X_Retrieval_Zheng_2024.pdf",
+    "category": "rag_variants",
+    "year": 2024,
+    "authors": [
+      "Zheng"
+    ],
+    "url": "https://arxiv.org/pdf/2312.00886"
+  },
+  {
+    "title": "DSPy",
+    "arxiv_id": "2212.14048",
+    "filename": "DSPy_Khattab_2023.pdf",
+    "category": "rag_variants",
+    "year": 2023,
+    "authors": [
+      "Khattab"
+    ],
+    "url": "https://arxiv.org/pdf/2212.14048"
+  },
+  {
+    "title": "Enhancing RAG with External Knowledge",
+    "arxiv_id": "2401.01860",
+    "filename": "Enhancing_RAG_with_External_Knowledge_Wang_2024.pdf",
+    "category": "rag_variants",
+    "year": 2024,
+    "authors": [
+      "Wang"
+    ],
+    "url": "https://arxiv.org/pdf/2401.01860"
+  },
+  {
+    "title": "When Not to Trust Language Models",
+    "arxiv_id": "2305.14627",
+    "filename": "When_Not_to_Trust_Language_Models_Yoran_2023.pdf",
+    "category": "rag_variants",
+    "year": 2023,
+    "authors": [
+      "Yoran"
+    ],
+    "url": "https://arxiv.org/pdf/2305.14627"
+  },
+  {
+    "title": "Iterative Retrieval-Augmented",
+    "arxiv_id": "2310.01230",
+    "filename": "Iterative_Retrieval-Augmented_Shao_2023.pdf",
+    "category": "rag_variants",
+    "year": 2023,
+    "authors": [
+      "Shao"
+    ],
+    "url": "https://arxiv.org/pdf/2310.01230"
+  },
+  {
+    "title": "Multi-hop Retrieval",
+    "arxiv_id": "2310.01520",
+    "filename": "Multi-hop_Retrieval_Khattab_2023.pdf",
+    "category": "rag_variants",
+    "year": 2023,
+    "authors": [
+      "Khattab"
+    ],
+    "url": "https://arxiv.org/pdf/2310.01520"
+  },
+  {
+    "title": "Hybrid Retrieval-Augmented",
+    "arxiv_id": "2403.15341",
+    "filename": "Hybrid_Retrieval-Augmented_Zhang_2024.pdf",
+    "category": "rag_variants",
+    "year": 2024,
+    "authors": [
+      "Zhang"
+    ],
+    "url": "https://arxiv.org/pdf/2403.15341"
+  },
+  {
+    "title": "RAG-Fusion",
+    "arxiv_id": "2402.03367",
+    "filename": "RAG-Fusion_Wang_2024.pdf",
+    "category": "rag_variants",
+    "year": 2024,
+    "authors": [
+      "Wang"
+    ],
+    "url": "https://arxiv.org/pdf/2402.03367"
+  },
+  {
+    "title": "RepoCoder",
+    "arxiv_id": "2303.12594",
+    "filename": "RepoCoder_Zhang_2023.pdf",
+    "category": "security_rag",
+    "year": 2023,
+    "authors": [
+      "Zhang"
+    ],
+    "url": "https://arxiv.org/pdf/2303.12594"
+  },
+  {
+    "title": "CodeRAG-Bench",
+    "arxiv_id": "2405.04657",
+    "filename": "CodeRAG-Bench_Wang_2024.pdf",
+    "category": "security_rag",
+    "year": 2024,
+    "authors": [
+      "Wang"
+    ],
+    "url": "https://arxiv.org/pdf/2405.04657"
+  },
+  {
+    "title": "Vulnerability Detection with Code Language Models",
+    "arxiv_id": "2401.01286",
+    "filename": "Vulnerability_Detection_with_Code_Language_Models_Ding_2024.pdf",
+    "category": "security_rag",
+    "year": 2024,
+    "authors": [
+      "Ding"
+    ],
+    "url": "https://arxiv.org/pdf/2401.01286"
+  },
+  {
+    "title": "Large Language Models for Code Security",
+    "arxiv_id": "2402.12491",
+    "filename": "Large_Language_Models_for_Code_Security_Zhang_2024.pdf",
+    "category": "security_rag",
+    "year": 2024,
+    "authors": [
+      "Zhang"
+    ],
+    "url": "https://arxiv.org/pdf/2402.12491"
+  },
+  {
+    "title": "RAG for Software Vulnerability Detection",
+    "arxiv_id": "2405.01472",
+    "filename": "RAG_for_Software_Vulnerability_Detection_Li_2024.pdf",
+    "category": "security_rag",
+    "year": 2024,
+    "authors": [
+      "Li"
+    ],
+    "url": "https://arxiv.org/pdf/2405.01472"
+  },
+  {
+    "title": "Secure Code Completion",
+    "arxiv_id": "2401.09871",
+    "filename": "Secure_Code_Completion_Niu_2024.pdf",
+    "category": "security_rag",
+    "year": 2024,
+    "authors": [
+      "Niu"
+    ],
+    "url": "https://arxiv.org/pdf/2401.09871"
+  },
+  {
+    "title": "Penetration Testing with LLM Agents",
+    "arxiv_id": "2405.02251",
+    "filename": "Penetration_Testing_with_LLM_Agents_Wang_2025.pdf",
+    "category": "security_rag",
+    "year": 2025,
+    "authors": [
+      "Wang"
+    ],
+    "url": "https://arxiv.org/pdf/2405.02251"
+  },
+  {
+    "title": "Automated Vulnerability Repair",
+    "arxiv_id": "2403.17888",
+    "filename": "Automated_Vulnerability_Repair_Xia_2024.pdf",
+    "category": "security_rag",
+    "year": 2024,
+    "authors": [
+      "Xia"
+    ],
+    "url": "https://arxiv.org/pdf/2403.17888"
+  },
+  {
+    "title": "Knowledge-Augmented Code Review",
+    "arxiv_id": "2402.05900",
+    "filename": "Knowledge-Augmented_Code_Review_Li_2024.pdf",
+    "category": "security_rag",
+    "year": 2024,
+    "authors": [
+      "Li"
+    ],
+    "url": "https://arxiv.org/pdf/2402.05900"
+  },
+  {
+    "title": "Retrieval-Augmented Code Generation",
+    "arxiv_id": "2311.14901",
+    "filename": "Retrieval-Augmented_Code_Generation_Zhang_2023.pdf",
+    "category": "security_rag",
+    "year": 2023,
+    "authors": [
+      "Zhang"
+    ],
+    "url": "https://arxiv.org/pdf/2311.14901"
+  },
+  {
+    "title": "ReAct",
+    "arxiv_id": "2210.03629",
+    "filename": "ReAct_Yao_2022.pdf",
+    "category": "llm_agents",
+    "year": 2022,
+    "authors": [
+      "Yao"
+    ],
+    "url": "https://arxiv.org/pdf/2210.03629"
+  },
+  {
+    "title": "Tree of Thoughts",
+    "arxiv_id": "2305.10601",
+    "filename": "Tree_of_Thoughts_Yao_2023.pdf",
+    "category": "llm_agents",
+    "year": 2023,
+    "authors": [
+      "Yao"
+    ],
+    "url": "https://arxiv.org/pdf/2305.10601"
+  },
+  {
+    "title": "Reflexion",
+    "arxiv_id": "2303.11366",
+    "filename": "Reflexion_Shinn_2023.pdf",
+    "category": "llm_agents",
+    "year": 2023,
+    "authors": [
+      "Shinn"
+    ],
+    "url": "https://arxiv.org/pdf/2303.11366"
+  },
+  {
+    "title": "Language Agent Tree Search",
+    "arxiv_id": "2310.04406",
+    "filename": "Language_Agent_Tree_Search_Zhou_2023.pdf",
+    "category": "llm_agents",
+    "year": 2023,
+    "authors": [
+      "Zhou"
+    ],
+    "url": "https://arxiv.org/pdf/2310.04406"
+  },
+  {
+    "title": "SWE-agent",
+    "arxiv_id": "2405.15793",
+    "filename": "SWE-agent_Yang_2024.pdf",
+    "category": "llm_agents",
+    "year": 2024,
+    "authors": [
+      "Yang"
+    ],
+    "url": "https://arxiv.org/pdf/2405.15793"
+  },
+  {
+    "title": "OpenDevin",
+    "arxiv_id": "2407.01741",
+    "filename": "OpenDevin_OpenDevin_2024.pdf",
+    "category": "llm_agents",
+    "year": 2024,
+    "authors": [
+      "OpenDevin"
+    ],
+    "url": "https://arxiv.org/pdf/2407.01741"
+  },
+  {
+    "title": "CodeAct",
+    "arxiv_id": "2402.01053",
+    "filename": "CodeAct_Wang_2024.pdf",
+    "category": "llm_agents",
+    "year": 2024,
+    "authors": [
+      "Wang"
+    ],
+    "url": "https://arxiv.org/pdf/2402.01053"
+  },
+  {
+    "title": "AIOS",
+    "arxiv_id": "2407.07002",
+    "filename": "AIOS_Mei_2024.pdf",
+    "category": "llm_agents",
+    "year": 2024,
+    "authors": [
+      "Mei"
+    ],
+    "url": "https://arxiv.org/pdf/2407.07002"
+  },
+  {
+    "title": "AutoGPT",
+    "arxiv_id": "2309.02308",
+    "filename": "AutoGPT_Hwang_2023.pdf",
+    "category": "llm_agents",
+    "year": 2023,
+    "authors": [
+      "Hwang"
+    ],
+    "url": "https://arxiv.org/pdf/2309.02308"
+  },
+  {
+    "title": "RGB",
+    "arxiv_id": "2404.07461",
+    "filename": "RGB_Chen_2024.pdf",
+    "category": "rag_benchmarks",
+    "year": 2024,
+    "authors": [
+      "Chen"
+    ],
+    "url": "https://arxiv.org/pdf/2404.07461"
+  },
+  {
+    "title": "CRUD-RAG",
+    "arxiv_id": "2401.17043",
+    "filename": "CRUD-RAG_Lyu_2024.pdf",
+    "category": "rag_benchmarks",
+    "year": 2024,
+    "authors": [
+      "Lyu"
+    ],
+    "url": "https://arxiv.org/pdf/2401.17043"
+  },
+  {
+    "title": "FRAMES",
+    "arxiv_id": "2402.07239",
+    "filename": "FRAMES_Zhu_2024.pdf",
+    "category": "rag_benchmarks",
+    "year": 2024,
+    "authors": [
+      "Zhu"
+    ],
+    "url": "https://arxiv.org/pdf/2402.07239"
+  },
+  {
+    "title": "KILT",
+    "arxiv_id": "2009.02252",
+    "filename": "KILT_Petroni_2021.pdf",
+    "category": "rag_benchmarks",
+    "year": 2021,
+    "authors": [
+      "Petroni"
+    ],
+    "url": "https://arxiv.org/pdf/2009.02252"
+  },
+  {
+    "title": "Lost in the Middle",
+    "arxiv_id": "2307.03172",
+    "filename": "Lost_in_the_Middle_Liu_2023.pdf",
+    "category": "rag_benchmarks",
+    "year": 2023,
+    "authors": [
+      "Liu"
+    ],
+    "url": "https://arxiv.org/pdf/2307.03172"
+  },
+  {
+    "title": "Evaluating RAG Systems",
+    "arxiv_id": "2401.05880",
+    "filename": "Evaluating_RAG_Systems_Zhang_2024.pdf",
+    "category": "rag_benchmarks",
+    "year": 2024,
+    "authors": [
+      "Zhang"
+    ],
+    "url": "https://arxiv.org/pdf/2401.05880"
+  },
+  {
+    "title": "Precise Zero-Shot Dense Retrieval without Relevance Labels_HyDE",
+    "arxiv_id": "2212.10496",
+    "filename": "Precise_Zero-Shot_Dense_Retrieval_without_Relevance_Labels_HyDE_Gao_2022.pdf",
+    "category": "rag_variants",
+    "year": 2022,
+    "authors": [
+      "Gao"
+    ],
+    "url": "https://arxiv.org/pdf/2212.10496"
+  },
+  {
+    "title": "Adaptive Retrieval-Augmented Generation for Conversational Systems",
+    "arxiv_id": "2407.21712",
+    "filename": "Adaptive_Retrieval-Augmented_Generation_for_Conversational_Systems_Jeong_2024.pdf",
+    "category": "rag_variants",
+    "year": 2024,
+    "authors": [
+      "Jeong"
+    ],
+    "url": "https://arxiv.org/pdf/2407.21712"
+  },
+  {
+    "title": "Generate rather than Retrieve Large Language Models are Strong Context Generators",
+    "arxiv_id": "2209.10063",
+    "filename": "Generate_rather_than_Retrieve_Large_Language_Models_are_Strong_Context_Yu_2023.pdf",
+    "category": "rag_variants",
+    "year": 2023,
+    "authors": [
+      "Yu"
+    ],
+    "url": "https://arxiv.org/pdf/2209.10063"
+  }
+]
